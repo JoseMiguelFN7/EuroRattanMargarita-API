@@ -67,6 +67,8 @@ class RoleController extends Controller
             $role->name = $request->name;
         }
 
+        $role->save();
+
         return response()->json($role);
     }
 

@@ -20,4 +20,8 @@ class Product extends Model
     public function furniture(){
         return $this->hasOne(Furniture::class);
     }
+
+    public function productMovements(){
+        return $this->hasMany(ProductMovement::class);
+    }
 }

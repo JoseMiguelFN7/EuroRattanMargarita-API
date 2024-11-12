@@ -99,4 +99,12 @@ Route::middleware([EnsureFrontendRequestsAreStateful::class, 'auth:sanctum'])->g
     Route::post('/setType', [App\Http\Controllers\SetTypeController::class, 'store']); //Crear un tipo de juego
     Route::post('/setType/{id}', [App\Http\Controllers\SetTypeController::class, 'update']); //Actualizar un tipo de juego
     Route::delete('/setType/{id}', [App\Http\Controllers\SetTypeController::class, 'destroy']); //Eliminar un tipo de juego
+
+    //Rutas para el CRUD de movimientos de productos
+    Route::get('/productMovements', [App\Http\Controllers\ProductMovementController::class, 'index']); // Obtener todos los movimientos
+    Route::get('/productMovements/{id}', [App\Http\Controllers\ProductMovementController::class, 'indexProduct']); // Obtener todos los movimientos de un producto
+    Route::get('/productMovement/{id}', [App\Http\Controllers\ProductMovementController::class, 'show']); // Obtener movimiento específico
+    Route::post('/productMovement', [App\Http\Controllers\ProductMovementController::class, 'store']); //Crear movimiento
+    Route::post('/productMovement/{id}', [App\Http\Controllers\ProductMovementController::class, 'update']); //Actualizar movimiento
+    Route::delete('/productMovement/{id}', [App\Http\Controllers\ProductMovementController::class, 'destroy']); //Eliminar movimiento
 });
