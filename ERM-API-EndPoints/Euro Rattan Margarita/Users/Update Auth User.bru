@@ -1,0 +1,29 @@
+meta {
+  name: Update Auth User
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{host}}user/auth
+  body: multipartForm
+  auth: bearer
+}
+
+headers {
+  Content-Type: multipart/form-data
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:multipart-form {
+  image: @file(C:\Users\José Ferreira\Downloads\usuario.png)
+  ~name: 
+  ~email: 
+  ~password: 
+  ~password_confirmatio: 
+  ~document: 
+  ~role_id: 
+}

@@ -1,0 +1,15 @@
+meta {
+  name: Delete FT
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{host}}furnitureType/3
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

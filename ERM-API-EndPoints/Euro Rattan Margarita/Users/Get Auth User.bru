@@ -1,0 +1,28 @@
+meta {
+  name: Get Auth User
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{host}}user/auth
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+vars:post-response {
+  : 
+}
+
+script:pre-request {
+  const body = req.getBody();
+  const datas = {
+    email:bru.getEnvVar("email"),
+    password: bru.getEnvVar("password")
+  }
+  req.setBody(datas);
+}

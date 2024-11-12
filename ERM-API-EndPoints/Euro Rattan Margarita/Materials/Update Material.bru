@@ -1,0 +1,23 @@
+meta {
+  name: Update Material
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{host}}material/1
+  body: multipartForm
+  auth: bearer
+}
+
+headers {
+  Content-Type: multipart/form-data
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:multipart-form {
+  image: @file(D:\Multimedia\Euro Rattan\20220810_101745.png)
+}

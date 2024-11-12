@@ -1,0 +1,15 @@
+meta {
+  name: Get All Labors
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{host}}labors
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

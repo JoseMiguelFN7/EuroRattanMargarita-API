@@ -1,0 +1,33 @@
+meta {
+  name: Create Material
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{host}}material
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "name": "test",
+    "code": "TEST",
+    "material_type_ids": [
+      2,
+      4
+    ],
+    "cost": 2.5,
+    "unit_id": 2,
+    "sell": 1
+  }
+}

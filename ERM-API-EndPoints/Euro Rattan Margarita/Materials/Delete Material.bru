@@ -1,0 +1,15 @@
+meta {
+  name: Delete Material
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{host}}material/
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

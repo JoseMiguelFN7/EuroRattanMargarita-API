@@ -1,0 +1,29 @@
+meta {
+  name: Update User
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{host}}user/2
+  body: multipartForm
+  auth: bearer
+}
+
+headers {
+  content-type: multipart/form-data
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:multipart-form {
+  image: @file(C:\Users\José Ferreira\Downloads\tulipanes1.png)
+  ~name: 
+  ~email: 
+  ~password: 
+  ~password_confirmation: 
+  ~document: 
+  ~role_id: 
+}

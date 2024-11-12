@@ -1,0 +1,38 @@
+meta {
+  name: Create Set
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{host}}set
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "name": "test",
+    "code": "TEST",
+    "setType_id": 1,
+    "furniture_ids": [
+      
+    ],
+    "profit_per": 2.5,
+    "paint_per": 2,
+    "labor_fab_per": 60,
+    "sell": 1
+  }
+}
+
+body:multipart-form {
+  : 
+}

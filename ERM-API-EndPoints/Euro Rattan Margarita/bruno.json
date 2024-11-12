@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "Euro Rattan Margarita",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

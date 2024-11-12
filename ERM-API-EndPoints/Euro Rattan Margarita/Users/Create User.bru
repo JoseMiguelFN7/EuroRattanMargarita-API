@@ -1,0 +1,25 @@
+meta {
+  name: Create User
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{host}}user
+  body: multipartForm
+  auth: none
+}
+
+headers {
+  Content-Type: multipart/form-data
+}
+
+body:multipart-form {
+  name: test
+  password: 123456789
+  password_confirmation: 123456789
+  document: V5555555555
+  role_id: 2
+  email: test@gmail.com
+  image: @file(C:\Users\José Ferreira\Downloads\tulipan.png)
+}

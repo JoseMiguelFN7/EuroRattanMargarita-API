@@ -1,0 +1,23 @@
+meta {
+  name: Create ST
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{host}}setType
+  body: multipartForm
+  auth: bearer
+}
+
+headers {
+  Content-Type: multipart/form-data
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:multipart-form {
+  name: test
+}

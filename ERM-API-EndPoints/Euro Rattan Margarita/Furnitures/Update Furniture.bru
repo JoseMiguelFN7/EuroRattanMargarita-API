@@ -1,0 +1,19 @@
+meta {
+  name: Update Furniture
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{host}}furniture/
+  body: multipartForm
+  auth: bearer
+}
+
+headers {
+  Content-Type: multipart/form-data
+}
+
+auth:bearer {
+  token: {{token}}
+}

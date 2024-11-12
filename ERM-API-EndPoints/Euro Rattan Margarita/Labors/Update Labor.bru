@@ -1,0 +1,24 @@
+meta {
+  name: Update Labor
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{host}}labor/2
+  body: multipartForm
+  auth: bearer
+}
+
+headers {
+  Content-Type: multipart/form-data
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:multipart-form {
+  name: Armador
+  daily_pay: 3
+}

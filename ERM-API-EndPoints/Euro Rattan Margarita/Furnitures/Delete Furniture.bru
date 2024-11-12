@@ -1,0 +1,15 @@
+meta {
+  name: Delete Furniture
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{host}}furniture/
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

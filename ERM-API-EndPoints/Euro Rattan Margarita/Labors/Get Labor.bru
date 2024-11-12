@@ -1,0 +1,15 @@
+meta {
+  name: Get Labor
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{host}}labor/2
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

@@ -1,0 +1,23 @@
+meta {
+  name: Create FT
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{host}}furnitureType
+  body: multipartForm
+  auth: bearer
+}
+
+headers {
+  Content-Type: multipart/form-data
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:multipart-form {
+  name: Test
+}

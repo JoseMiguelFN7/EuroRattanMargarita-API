@@ -1,0 +1,30 @@
+meta {
+  name: Create Furniture
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{host}}furniture
+  body: multipartForm
+  auth: bearer
+}
+
+headers {
+  Content-Type: multipart/form-data
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:multipart-form {
+  name: 
+  code: 
+  furnitureType_id: 
+  profit_per: 
+  paint_per: 
+  labor_fab_per: 
+  sell: 
+  image: @file()
+}

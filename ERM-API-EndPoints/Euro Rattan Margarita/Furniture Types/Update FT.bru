@@ -1,0 +1,23 @@
+meta {
+  name: Update FT
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{host}}furnitureType/2
+  body: multipartForm
+  auth: bearer
+}
+
+headers {
+  Content-Type: multipart/form-data
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:multipart-form {
+  name: Mesas
+}

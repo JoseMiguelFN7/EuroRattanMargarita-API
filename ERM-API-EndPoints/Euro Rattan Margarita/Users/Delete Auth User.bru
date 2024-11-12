@@ -1,0 +1,15 @@
+meta {
+  name: Delete Auth User
+  type: http
+  seq: 9
+}
+
+delete {
+  url: {{host}}user/auth
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

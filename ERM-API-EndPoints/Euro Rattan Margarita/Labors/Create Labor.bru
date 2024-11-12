@@ -1,0 +1,24 @@
+meta {
+  name: Create Labor
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{host}}labor
+  body: multipartForm
+  auth: bearer
+}
+
+headers {
+  Content-Type: multipart/form-data
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:multipart-form {
+  name: test1
+  daily_pay: 0
+}
