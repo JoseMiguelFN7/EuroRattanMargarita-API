@@ -5,7 +5,11 @@ meta {
 }
 
 get {
-  url: {{host}}productMovements/
+  url: {{host}}productMovements/11
   body: none
-  auth: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
 }

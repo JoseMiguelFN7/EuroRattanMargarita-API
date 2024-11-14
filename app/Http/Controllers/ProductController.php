@@ -4,10 +4,11 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Product;
+use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
-    //Obtener todos los usuarios
+    //Obtener todos los productos
     public function index(){
         $products = Product::with(['material', 'furniture'])->get();
         return response()->json($products);
@@ -23,5 +24,26 @@ class ProductController extends Controller
         }
 
         return response()->json($product);
+    }
+
+    //Obtener todos los stocks
+    public function indexStocks(){
+        $productStocks = DB::table('product_stocks')->get();
+
+        return response()->json($productStocks);
+    }
+
+    //Obtener stock por ID de producto
+    public function showStock($id)
+    {
+        $productStock = DB::table('product_stocks')
+                        ->where('id', $id)
+                        ->first();
+
+        if(!$productStock){
+            return response()->json(['message'=>'Producto no encontrado'], 404);
+        }
+
+        return response()->json($productStock);
     }
 }

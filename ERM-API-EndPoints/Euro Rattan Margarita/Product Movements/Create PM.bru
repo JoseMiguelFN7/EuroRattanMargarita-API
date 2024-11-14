@@ -5,7 +5,21 @@ meta {
 }
 
 post {
-  url: 
-  body: none
-  auth: none
+  url: {{host}}productMovement
+  body: multipartForm
+  auth: bearer
+}
+
+headers {
+  Content-Type: multipart/form-data
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:multipart-form {
+  product_id: 11
+  quantity: 1
+  ~movement_date: 
 }

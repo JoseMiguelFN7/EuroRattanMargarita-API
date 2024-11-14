@@ -107,4 +107,8 @@ Route::middleware([EnsureFrontendRequestsAreStateful::class, 'auth:sanctum'])->g
     Route::post('/productMovement', [App\Http\Controllers\ProductMovementController::class, 'store']); //Crear movimiento
     Route::post('/productMovement/{id}', [App\Http\Controllers\ProductMovementController::class, 'update']); //Actualizar movimiento
     Route::delete('/productMovement/{id}', [App\Http\Controllers\ProductMovementController::class, 'destroy']); //Eliminar movimiento
+
+    // Rutas para el CRUD de stocks
+    Route::get('/products/stocks', [App\Http\Controllers\ProductController::class, 'indexStocks']); // Obtener todos los stocks
+    Route::get('/product/stock/{id}', [App\Http\Controllers\ProductController::class, 'showStock']); // Obtener un stock específico
 });
