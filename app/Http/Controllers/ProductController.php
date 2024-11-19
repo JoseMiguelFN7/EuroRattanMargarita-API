@@ -26,6 +26,17 @@ class ProductController extends Controller
         return response()->json($product);
     }
 
+    public function showCod($cod)
+    {
+        $product = Product::with(['material', 'furniture'])->where('cod', $cod)->first(); //Busca el producto por cod
+
+        if(!$product){
+            return response()->json(['message'=>'Producto no encontrado'], 404);
+        }
+
+        return response()->json($product);
+    }
+
     //Obtener todos los stocks
     public function indexStocks(){
         $productStocks = DB::table('product_stocks')->get();

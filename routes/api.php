@@ -10,7 +10,9 @@ Route::post('/user', [App\Http\Controllers\UserController::class, 'store']); // 
 
 // Rutas para el CRUD de productos
 Route::get('/products', [App\Http\Controllers\ProductController::class, 'index']); // Obtener todos los productos
-Route::get('/product/{id}', [App\Http\Controllers\ProductController::class, 'show']); // Obtener un producto específico
+Route::get('/product/id/{id}', [App\Http\Controllers\ProductController::class, 'show']); // Obtener un producto específico por id
+Route::get('/product/cod/{cod}', [App\Http\Controllers\ProductController::class, 'showCod']); // Obtener un producto específico por Cod
+
 
 // Rutas para el CRUD de tipos de materiales
 Route::get('/materialTypes', [App\Http\Controllers\MaterialTypeController::class, 'index']); // Obtener todos los tipos de material
