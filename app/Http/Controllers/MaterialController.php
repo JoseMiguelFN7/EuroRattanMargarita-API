@@ -48,6 +48,7 @@ class MaterialController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:255|unique:products',
+            'description' => 'required|string|max:500',
             'material_type_ids' => 'required|array',
             'material_type_ids.*' => 'integer|exists:material_types,id',
             'cost' => 'required|numeric',
@@ -76,6 +77,7 @@ class MaterialController extends Controller
             $product = Product::create([
                 'name' => $request->name,
                 'code' => $request->code,
+                'description' => $request->description,
                 'sell' => $request->sell,
                 'image' => $image
             ]);
@@ -120,6 +122,7 @@ class MaterialController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
             'code' => 'sometimes|required|string|max:255|unique:products',
+            'description' => 'sometimes|required|string|max:500',
             'sell' => 'sometimes|required|boolean',
             'material_type_ids' => 'sometimes|required|array',
             'material_type_ids.*' => 'integer|exists:material_types,id',
@@ -143,6 +146,10 @@ class MaterialController extends Controller
 
             if($request->has('code')){
                 $product->code = $request->code;
+            }
+
+            if($request->has('description')){
+                $product->description = $request->description;
             }
 
             if($request->has('sell')){

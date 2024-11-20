@@ -47,6 +47,7 @@ class SetController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:255|unique:products',
+            'description' => 'required|string|max:500',
             'setType_id' => 'required|integer|exists:furniture_types,id',
             'furniture_ids' => 'required|array',
             'furniture_ids.*' => 'integer|exists:furnitures,id',
@@ -125,6 +126,7 @@ class SetController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
             'code' => 'sometimes|required|string|max:255|unique:products',
+            'description' => 'sometimes|required|string|max:500',
             'setType_id' => 'sometimes|required|integer|exists:set_types,id',
             'furniture_ids' => 'sometimes|required|array',
             'furniture_ids.*' => 'integer|exists:furnitures,id',
@@ -150,6 +152,10 @@ class SetController extends Controller
 
             if($request->has('code')){
                 $product->code = $request->code;
+            }
+
+            if($request->has('description')){
+                $product->description = $request->description;
             }
 
             if($request->has('sell')){
