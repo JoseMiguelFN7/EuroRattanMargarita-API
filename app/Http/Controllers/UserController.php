@@ -50,6 +50,7 @@ class UserController extends Controller
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:9|confirmed',
             'document' => 'required|string|max:15|unique:users',
+            'address' => 'required|string|max:500',
             'role_id' => 'required|integer|exists:roles,id',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
         ]);
@@ -74,6 +75,7 @@ class UserController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'document' => $request->document,
+            'address' => $request->address,
             'role_id' => $request->role_id,
             'image' => $image
         ]);
@@ -112,6 +114,7 @@ class UserController extends Controller
             'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $id,
             'password' => 'sometimes|required|string|min:8|confirmed',
             'document' => 'sometimes|required|string|max:15|unique:users',
+            'address' => 'sometimes|required|string|max:500',
             'role_id' => 'sometimes|required|integer|exists:roles,id',
             'image' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
         ]);
@@ -132,6 +135,18 @@ class UserController extends Controller
 
         if($request->has('password')){
             $user->password = Hash::make($request->password);
+        }
+
+        if($request->has('document')){
+            $user->document = $request->document;
+        }
+
+        if($request->has('address')){
+            $user->address = $request->address;
+        }
+
+        if($request->has('role_id')){
+            $user->role_id = $request->role_id;
         }
 
         if ($request->hasFile('image')) {
@@ -161,6 +176,7 @@ class UserController extends Controller
             'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . Auth::id(),
             'password' => 'sometimes|required|string|min:8|confirmed',
             'document' => 'sometimes|required|string|max:15|unique:users',
+            'address' => 'sometimes|required|string|max:500',
             'role_id' => 'sometimes|required|integer|exists:roles,id',
             'image' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
         ]);
@@ -181,6 +197,18 @@ class UserController extends Controller
 
         if($request->has('password')){
             $user->password = Hash::make($request->password);
+        }
+
+        if($request->has('document')){
+            $user->document = $request->document;
+        }
+
+        if($request->has('address')){
+            $user->address = $request->address;
+        }
+
+        if($request->has('role_id')){
+            $user->role_id = $request->role_id;
         }
 
         if ($request->hasFile('image')) {

@@ -13,16 +13,3 @@ get {
 auth:bearer {
   token: {{token}}
 }
-
-vars:post-response {
-  : 
-}
-
-script:pre-request {
-  const body = req.getBody();
-  const datas = {
-    email:bru.getEnvVar("email"),
-    password: bru.getEnvVar("password")
-  }
-  req.setBody(datas);
-}

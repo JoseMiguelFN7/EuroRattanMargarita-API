@@ -81,6 +81,7 @@ class FurnitureController extends Controller
             $product = Product::create([
                 'name' => $request->name,
                 'code' => $request->code,
+                'description' => $request->description,
                 'sell' => $request->sell,
                 'image' => $image
             ]);
