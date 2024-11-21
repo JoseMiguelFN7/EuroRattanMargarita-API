@@ -69,6 +69,12 @@ class UserController extends Controller
             $image = null;
         }
 
+        if($request->has('role_id')){
+            $role = $request->role_id;
+        } else{
+            $role = 2;
+        }
+
         // Crear el nuevo usuario
         $user = User::create([
             'name' => $request->name,
@@ -76,7 +82,7 @@ class UserController extends Controller
             'password' => Hash::make($request->password),
             'document' => $request->document,
             'address' => $request->address,
-            'role_id' => $request->role_id,
+            'role_id' => $role,
             'image' => $image
         ]);
 
