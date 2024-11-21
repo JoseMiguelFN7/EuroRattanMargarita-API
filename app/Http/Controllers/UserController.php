@@ -51,7 +51,7 @@ class UserController extends Controller
             'password' => 'required|string|min:9|confirmed',
             'document' => 'required|string|max:15|unique:users',
             'address' => 'required|string|max:500',
-            'role_id' => 'required|integer|exists:roles,id',
+            'role_id' => 'sometimes|required|integer|exists:roles,id',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
         ]);
 
