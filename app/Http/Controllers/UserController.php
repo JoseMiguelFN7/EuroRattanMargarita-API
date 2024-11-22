@@ -8,12 +8,23 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Auth\AuthenticationException;
 
 class UserController extends Controller
 {
     //obtener usuario logeado
     public function getAuth(){
-        return Auth::user();
+        $user = Auth::user(); // Obtener el usuario autenticado
+    
+        if (!$user) {
+            throw new AuthenticationException('Usuario no autenticado');
+        }
+
+        if ($user->image) {
+            $user->image = asset('storage/' . $user->image); // Generar la URL completa de la imagen
+        }
+
+        return $user;
     }
 
     //Obtener todos los usuarios
@@ -275,7 +286,9 @@ class UserController extends Controller
     {
         // Verificar si el usuario está autenticado
         if (Auth::check()) {
-            $request->user()->tokens()->delete(); // Elimina los tokens del usuario
+            $request->user()->tokens->each(function ($token) { //eliminar tokens de usuario
+                $token->delete();
+            });
             return response()->json([
                 'message' => 'Sesión cerrada con éxito'
             ], 200);

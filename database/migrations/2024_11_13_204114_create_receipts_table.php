@@ -13,7 +13,13 @@ return new class extends Migration
     {
         Schema::create('receipts', function (Blueprint $table) {
             $table->id();
+            $table->unsignedBigInteger('client_id')->nullable();
             $table->timestamps();
+
+            $table->foreign('client_id')
+                ->references('id')->on('users')
+                ->onDelete('set null')
+                ->onUpdate('cascade');
         });
     }
 

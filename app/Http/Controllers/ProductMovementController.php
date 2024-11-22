@@ -71,6 +71,16 @@ class ProductMovementController extends Controller
         return response()->json($productMovement, 201);
     }
 
+    // Método de creacion reutilizable
+    public function createProductMovement($productId, $quantity, $movementDate)
+    {
+        return ProductMovement::create([
+            'product_id' => $productId,
+            'quantity' => $quantity,
+            'movement_date' => $movementDate
+        ]);
+    }
+
     //Actualizar un movimiento
     public function update(Request $request, $id){
         $productMovement = ProductMovement::find($id);

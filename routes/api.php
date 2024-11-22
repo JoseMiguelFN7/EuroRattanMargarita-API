@@ -42,7 +42,7 @@ Route::get('/set/{id}', [App\Http\Controllers\SetController::class, 'show']); //
 Route::get('/setTypes', [App\Http\Controllers\SetTypeController::class, 'index']); // Obtener todos los tipos de juego
 Route::get('/setType/{id}', [App\Http\Controllers\SetTypeController::class, 'show']); // Obtener un tipo de juego específico
 
-Route::middleware([EnsureFrontendRequestsAreStateful::class, 'auth:sanctum'])->group(function () {
+Route::middleware(['auth:sanctum'])->group(function () {
     // Rutas para el CRUD de usuarios
     Route::get('/user/auth', [App\Http\Controllers\UserController::class, 'getAuth']); //Obtener datos de usuario autenticado
     Route::post('/user/auth', [App\Http\Controllers\UserController::class, 'updateAuthUser']); //Actualizar datos de usuario autenticado
@@ -113,4 +113,10 @@ Route::middleware([EnsureFrontendRequestsAreStateful::class, 'auth:sanctum'])->g
     // Rutas para el CRUD de stocks
     Route::get('/products/stocks', [App\Http\Controllers\ProductController::class, 'indexStocks']); // Obtener todos los stocks
     Route::get('/product/stock/{id}', [App\Http\Controllers\ProductController::class, 'showStock']); // Obtener un stock específico
+
+    // Rutas para el CRUD de Facturas
+    Route::get('/receipts', [App\Http\Controllers\ReceiptController::class, 'index']); // Obtener todas las facturas
+    Route::get('/receipt/{id}', [App\Http\Controllers\ReceiptController::class, 'show']); // Obtener una factura específica
+    Route::post('/receipt', [App\Http\Controllers\ReceiptController::class, 'store']); // Crear factura
+    Route::delete('/receipt/{id}', [App\Http\Controllers\ReceiptController::class, 'destroy']); // Eliminar una factura
 });

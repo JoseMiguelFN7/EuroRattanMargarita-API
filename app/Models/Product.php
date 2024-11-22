@@ -25,4 +25,9 @@ class Product extends Model
     public function productMovements(){
         return $this->hasMany(ProductMovement::class);
     }
+
+    public function receipts(){
+        return $this->belongsToMany(Receipt::class, 'receipts_products', 'product_id', 'receipt_id')
+                    ->withPivot('amount', 'price', 'discount');
+    }
 }
