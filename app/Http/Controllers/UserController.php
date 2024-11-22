@@ -50,6 +50,7 @@ class UserController extends Controller
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:9|confirmed',
             'document' => 'required|string|max:15|unique:users',
+            'cellphone' => 'required|string|min:12|max:12|unique:users',
             'address' => 'required|string|max:500',
             'role_id' => 'sometimes|required|integer|exists:roles,id',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
@@ -81,6 +82,7 @@ class UserController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'document' => $request->document,
+            'cellphone' => $$request->cellphone,
             'address' => $request->address,
             'role_id' => $role,
             'image' => $image
@@ -120,6 +122,7 @@ class UserController extends Controller
             'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $id,
             'password' => 'sometimes|required|string|min:8|confirmed',
             'document' => 'sometimes|required|string|max:15|unique:users',
+            'cellphone' => 'sometimes|required|string|min:12|max:12|unique:users',
             'address' => 'sometimes|required|string|max:500',
             'role_id' => 'sometimes|required|integer|exists:roles,id',
             'image' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
@@ -145,6 +148,10 @@ class UserController extends Controller
 
         if($request->has('document')){
             $user->document = $request->document;
+        }
+
+        if($request->has('cellphone')){
+            $user->cellphone = $request->cellphone;
         }
 
         if($request->has('address')){
@@ -168,7 +175,7 @@ class UserController extends Controller
         return response()->json($user);
     }
 
-    //Actualizar un usuario
+    //Actualizar usuario logeado
     public function updateAuthUser(Request $request)
     {
         if(!Auth::check()){
@@ -182,11 +189,12 @@ class UserController extends Controller
             'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . Auth::id(),
             'password' => 'sometimes|required|string|min:8|confirmed',
             'document' => 'sometimes|required|string|max:15|unique:users',
+            'cellphone' => 'sometimes|required|string|min:12|max:12|unique:users',
             'address' => 'sometimes|required|string|max:500',
             'role_id' => 'sometimes|required|integer|exists:roles,id',
             'image' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
         ]);
-        
+
         if ($validator->fails()) {
             return response()->json([
                 'errors' => $validator->errors()->messages()
@@ -207,6 +215,10 @@ class UserController extends Controller
 
         if($request->has('document')){
             $user->document = $request->document;
+        }
+
+        if($request->has('cellphone')){
+            $user->cellphone = $request->cellphone;
         }
 
         if($request->has('address')){
