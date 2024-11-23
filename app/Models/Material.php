@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Material extends Model
 {
     protected $fillable = [
-        'cost',
+        'price',
         'product_id',
         'unit_id'
     ];

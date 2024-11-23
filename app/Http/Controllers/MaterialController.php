@@ -43,6 +43,22 @@ class MaterialController extends Controller
         return response()->json($material);
     }
 
+    //Obtener una cantidad especifica de materiales en orden aleatorio
+    public function rand($quantity)
+    {
+        // Validar que el parámetro es un número entero positivo
+        if (!is_numeric($quantity) || $quantity <= 0) {
+            return response()->json([
+                'error' => 'La cantidad debe ser un número entero positivo.'
+            ], 400);
+        }
+
+        // Obtener registros aleatorios
+        $materials = Material::with(['materialTypes', 'product', 'unit'])->inRandomOrder()->take($quantity)->get();
+
+        return response()->json($materials);
+    }
+
     //Crear material
     public function store(Request $request){
         $validator = Validator::make($request->all(), [
@@ -51,7 +67,7 @@ class MaterialController extends Controller
             'description' => 'required|string|max:500',
             'material_type_ids' => 'required|array',
             'material_type_ids.*' => 'integer|exists:material_types,id',
-            'cost' => 'required|numeric',
+            'price' => 'required|numeric',
             'unit_id' => 'required|numeric',
             'sell' => 'required|boolean',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
@@ -86,7 +102,7 @@ class MaterialController extends Controller
             $material = Material::create([
                 'product_id' => $product->id,
                 'unit_id' => $request->unit_id,
-                'cost' => $request->cost,
+                'price' => $request->price,
             ]);
 
             // Asociar los tipos de materiales con el material creado
@@ -126,7 +142,7 @@ class MaterialController extends Controller
             'sell' => 'sometimes|required|boolean',
             'material_type_ids' => 'sometimes|required|array',
             'material_type_ids.*' => 'integer|exists:material_types,id',
-            'cost' => 'sometimes|required|numeric|min:0',
+            'price' => 'sometimes|required|numeric|min:0',
             'unit_id' => 'sometimes|required|numeric',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
         ]);
@@ -154,6 +170,10 @@ class MaterialController extends Controller
 
             if($request->has('sell')){
                 $product->sell = $request->sell;
+            }
+
+            if($request->has('price')){
+                $material->price = $request->price;
             }
 
             if ($request->hasFile('image')) {
