@@ -24,7 +24,7 @@ class Receipt extends Model
 
     public function products(){
         return $this->belongsToMany(Product::class, 'receipts_products', 'receipt_id', 'product_id')
-                    ->withPivot('amount', 'price', 'discount');
+                    ->withPivot('quantity', 'price', 'discount');
     }
 
     public function user(){

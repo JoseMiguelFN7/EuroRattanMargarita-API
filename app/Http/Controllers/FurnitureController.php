@@ -49,10 +49,12 @@ class FurnitureController extends Controller
             'code' => 'required|string|max:255|unique:products',
             'description' => 'required|string|max:500',
             'furnitureType_id' => 'required|integer|exists:furniture_types,id',
-            'material_ids' => 'required|array',
-            'material_ids.*' => 'integer|exists:materials,id',
-            'labor_ids' => 'required|array',
-            'labor_ids.*' => 'integer|exists:labors,id',
+            'materials' => 'required|array',
+            'materials.*.id' => 'required|integer|exists:materials,id',
+            'materials.*.quantity' => 'required|numeric|min:0',
+            'labors' => 'required|array',
+            'labors.*.id' => 'required|integer|exists:labors,id',
+            'labors.*.days' => 'required|numeric|min:0',
             'profit_per' => 'required|numeric|min:0',
             'paint_per' => 'required|numeric|min:0',
             'labor_fab_per' => 'required|numeric|min:0',
@@ -95,11 +97,19 @@ class FurnitureController extends Controller
                 'labor_fab_per' => $request->labor_fab_per
             ]);
 
-            // Asociar los materiales con el mueble creado
-            $furniture->materials()->sync($request->material_ids);
+            // Procesar materiales
+            $materialsData = [];
+            foreach ($request->materials as $material) {
+                $materialsData[$material['id']] = ['quantity' => $material['quantity']];
+            }
+            $furniture->materials()->sync($materialsData);
 
-            // Asociar las MO con el mueble creado
-            $furniture->labors()->sync($request->labor_ids);
+            // Procesar manos de obra
+            $laborsData = [];
+            foreach ($request->labors as $labor) {
+                $laborsData[$labor['id']] = ['days' => $labor['days']];
+            }
+            $furniture->labors()->sync($laborsData);
 
             // Confirmar la transacción
             DB::commit();
@@ -134,10 +144,12 @@ class FurnitureController extends Controller
             'code' => 'sometimes|required|string|max:255|unique:products',
             'description' => 'sometimes|required|string|max:500',
             'furnitureType_id' => 'sometimes|required|integer|exists:furniture_types,id',
-            'material_ids' => 'sometimes|required|array',
-            'material_ids.*' => 'integer|exists:materials,id',
-            'labor_ids' => 'sometimes|required|array',
-            'labor_ids.*' => 'integer|exists:labors,id',
+            'materials' => 'sometimes|required|array',
+            'materials.*.id' => 'required|integer|exists:materials,id',
+            'materials.*.quantity' => 'required|numeric|min:0',
+            'labors' => 'sometimes|required|array',
+            'labors.*.id' => 'required|integer|exists:labors,id',
+            'labors.*.days' => 'required|numeric|min:0',
             'profit_per' => 'sometimes|required|numeric|min:0',
             'paint_per' => 'sometimes|required|numeric|min:0',
             'labor_fab_per' => 'sometimes|required|numeric|min:0',
@@ -194,14 +206,20 @@ class FurnitureController extends Controller
                 $furniture->labor_fab_per = $request->labor_fab_per;
             }
 
-            // Sincronizar los materiales
-            if ($request->has('material_ids')) {
-                $furniture->materials()->sync($request->material_ids);
+            // Sincronizar materiales con cantidades
+            if ($request->has('materials')) {
+                $materialsData = collect($request->materials)->mapWithKeys(function ($material) {
+                    return [$material['id'] => ['quantity' => $material['quantity']]];
+                })->toArray();
+                $furniture->materials()->sync($materialsData);
             }
 
-            // Sincronizar las MO
-            if ($request->has('labor_ids')) {
-                $furniture->labors()->sync($request->labor_ids);
+            // Sincronizar mano de obra con días
+            if ($request->has('labors')) {
+                $laborsData = collect($request->labors)->mapWithKeys(function ($labor) {
+                    return [$labor['id'] => ['days' => $labor['days']]];
+                })->toArray();
+                $furniture->labors()->sync($laborsData);
             }
 
             $product->save();

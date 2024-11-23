@@ -21,7 +21,7 @@ class Set extends Model
 
     public function furnitures(){
         return $this->belongsToMany(Furniture::class, 'sets_furnitures', 'set_id', 'furniture_id')
-                    ->withPivot('amount');
+                    ->withPivot('quantity');
     }
 
     public function setType(){

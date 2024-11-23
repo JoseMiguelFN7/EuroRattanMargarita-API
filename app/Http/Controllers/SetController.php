@@ -49,8 +49,9 @@ class SetController extends Controller
             'code' => 'required|string|max:255|unique:products',
             'description' => 'required|string|max:500',
             'setType_id' => 'required|integer|exists:furniture_types,id',
-            'furniture_ids' => 'required|array',
-            'furniture_ids.*' => 'integer|exists:furnitures,id',
+            'furnitures' => 'required|array',
+            'furnitures.*.id' => 'integer|exists:furnitures,id',
+            'furnitures.*.quantity' => 'required|numeric|min:0',
             'profit_per' => 'required|numeric|min:0',
             'paint_per' => 'required|numeric|min:0',
             'labor_fab_per' => 'required|numeric|min:0',
@@ -93,8 +94,12 @@ class SetController extends Controller
                 'labor_fab_per' => $request->labor_fab_per
             ]);
 
-            // Asociar los muebles con el juego creado
-            $set->furnitures()->sync($request->furniture_ids);
+            // Procesar materiales
+            $furnituresData = [];
+            foreach ($request->furnitures as $furniture) {
+                $furnituresData[$furniture['id']] = ['quantity' => $furniture['quantity']];
+            }
+            $set->furnitures()->sync($furnituresData);
 
             // Confirmar la transacción
             DB::commit();
@@ -129,8 +134,9 @@ class SetController extends Controller
             'code' => 'sometimes|required|string|max:255|unique:products',
             'description' => 'sometimes|required|string|max:500',
             'setType_id' => 'sometimes|required|integer|exists:set_types,id',
-            'furniture_ids' => 'sometimes|required|array',
-            'furniture_ids.*' => 'integer|exists:furnitures,id',
+            'furnitures' => 'sometimes|required|array',
+            'furnitures.*.id' => 'required|integer|exists:furnitures,id',
+            'furnitures.*.quantity' => 'required|numeric|min:0',
             'profit_per' => 'sometimes|required|numeric|min:0',
             'paint_per' => 'sometimes|required|numeric|min:0',
             'labor_fab_per' => 'sometimes|required|numeric|min:0',
@@ -187,9 +193,12 @@ class SetController extends Controller
                 $set->labor_fab_per = $request->labor_fab_per;
             }
 
-            // Sincronizar los materiales
-            if ($request->has('furniture_ids')) {
-                $set->furnitures()->sync($request->furniture_ids);
+            // Sincronizar muebles con cantidades
+            if ($request->has('furnitures')) {
+                $furnituresData = collect($request->furnitures)->mapWithKeys(function ($furniture) {
+                    return [$furniture['id'] => ['quantity' => $furniture['quantity']]];
+                })->toArray();
+                $set->furnitures()->sync($furnituresData);
             }
 
             $product->save();
