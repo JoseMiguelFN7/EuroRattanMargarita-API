@@ -22,6 +22,10 @@ class Product extends Model
         return $this->hasOne(Furniture::class);
     }
 
+    public function set(){
+        return $this->hasOne(Set::class);
+    }
+
     public function productMovements(){
         return $this->hasMany(ProductMovement::class);
     }

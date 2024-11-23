@@ -27,7 +27,12 @@ class MaterialController extends Controller
 
     //Obtener todos los materiales
     public function index(){
-        $materials = Material::with(['materialTypes', 'product', 'unit'])->get();
+        $materials = Material::with(['materialTypes', 'product', 'unit'])->get()->map(function ($material) {
+            // Agregar la URL completa de la imagen al material
+            $material->product->image = $material->product->image ? asset('storage/' . $material->product->image) : null;
+            return $material;
+        });
+
         return response()->json($materials);
     }
 
@@ -38,6 +43,10 @@ class MaterialController extends Controller
 
         if(!$material){
             return response()->json(['message'=>'Material no encontrado'], 404);
+        }
+
+        if ($material->product->image) {
+            $material->product->image = asset('storage/' . $material->product->image); // Generar la URL completa de la imagen
         }
 
         return response()->json($material);
@@ -54,7 +63,18 @@ class MaterialController extends Controller
         }
 
         // Obtener registros aleatorios
-        $materials = Material::with(['materialTypes', 'product', 'unit'])->inRandomOrder()->take($quantity)->get();
+        $materials = Material::with(['materialTypes', 'product', 'unit'])
+            ->whereHas('product', function ($query) {
+                $query->where('sell', true); // Filtrar por 'sell = true'
+            })
+            ->inRandomOrder() // Seleccionar en orden aleatorio
+            ->take($quantity) // Limitar la cantidad
+            ->get()
+            ->map(function ($material) {
+                // Agregar la URL completa de la imagen al material
+                $material->product->image = $material->product->image ? asset('storage/' . $material->product->image) : null;
+                return $material;
+            });;
 
         return response()->json($materials);
     }
