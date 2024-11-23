@@ -26,10 +26,17 @@ class Furniture extends Model
     }
 
     public function materials(){
-        return $this->belongsToMany(Material::class, 'furnitures_materials', 'furniture_id', 'material_id');
+        return $this->belongsToMany(Material::class, 'furnitures_materials', 'furniture_id', 'material_id')
+                    ->withPivot('amount');
     }
 
     public function labors(){
-        return $this->belongsToMany(Labor::class, 'furnitures_labors', 'furniture_id', 'labor_id');
+        return $this->belongsToMany(Labor::class, 'furnitures_labors', 'furniture_id', 'labor_id')
+                    ->withPivot('days');
+    }
+
+    public function sets(){
+        return $this->belongsToMany(Set::class, 'sets_furnitures', 'furniture_id', 'set_id')
+                    ->withPivot('amount');
     }
 }
