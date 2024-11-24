@@ -11,22 +11,19 @@ use Illuminate\Support\Facades\DB;
 
 class FurnitureController extends Controller
 {
-    public function uploadPhoto(Request $r){
-        // Obtener el archivo de la solicitud
-        $file = $r->file('image');
-
-        // Generar un nombre único para la imagen
-        $filename = time() . '-' . $file->getClientOriginalName();
-
-        // Subir la imagen al directorio 'productPics' dentro de 'storage/app/public/assets'
-        $url = $file->storeAs('assets/productPics', $filename, 'public');
-
-        return $url;
-    }
-
     //Obtener todos los muebles
     public function index(){
-        $furnitures = Furniture::with(['furnitureType', 'product'])->get();
+        $furnitures = Furniture::with(['furnitureType', 'product'])->get()->map(function ($furniture) {
+            $product = $furniture->product;
+
+            // Agregar las URL completas de las imágenes del producto
+            $product->images = $product->images->map(function ($image) {
+                return asset('storage/' . $image->url);
+            });
+            
+            return $furniture;
+        });
+
         return response()->json($furnitures);
     }
 
@@ -39,7 +36,42 @@ class FurnitureController extends Controller
             return response()->json(['message'=>'Mueble no encontrado'], 404);
         }
 
+        $product = $furniture->product;
+
+        $product->images = $product->images->map(function ($image) {
+            return asset('storage/' . $image->url); // Generar las URLs completas de las imágenes
+        });
+
         return response()->json($furniture);
+    }
+
+    //Obtener una cantidad especifica de muebles en orden aleatorio
+    public function rand($quantity)
+    {
+        // Validar que el parámetro es un número entero positivo
+        if (!is_numeric($quantity) || $quantity <= 0) {
+            return response()->json([
+                'error' => 'La cantidad debe ser un número entero positivo.'
+            ], 400);
+        }
+
+        // Obtener registros aleatorios
+        $furnitures = Product::with(['furnitureType', 'product', 'unit'])
+            ->whereHas('product', function ($query) {
+                $query->where('sell', true); // Filtrar por 'sell = true'
+            })
+            ->inRandomOrder() // Seleccionar en orden aleatorio
+            ->take($quantity) // Limitar la cantidad
+            ->get()
+            ->map(function ($furniture) {
+                // Obtener solo la primera imagen del producto, si existe
+                $furniture->product->image = $furniture->product->images->first() 
+                    ? asset('storage/' . $furniture->product->images->first()->url) 
+                    : null;
+                return $furniture;
+            });
+
+        return response()->json($furnitures);
     }
 
     //Crear mueble
