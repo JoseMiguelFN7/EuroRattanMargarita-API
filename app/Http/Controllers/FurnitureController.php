@@ -91,7 +91,8 @@ class FurnitureController extends Controller
             'paint_per' => 'required|numeric|min:0',
             'labor_fab_per' => 'required|numeric|min:0',
             'sell' => 'required|boolean',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
+            'images' => 'nullable|array',
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
         //enviar error si es necesario
@@ -104,20 +105,12 @@ class FurnitureController extends Controller
         DB::beginTransaction();
 
         try {
-            // Procesado de imagen
-            if ($request->hasFile('image')) {
-                $image = $this->uploadPhoto($request);
-            } else {
-                $image = null;
-            }
-
             // Crear producto
             $product = Product::create([
                 'name' => $request->name,
                 'code' => $request->code,
                 'description' => $request->description,
                 'sell' => $request->sell,
-                'image' => $image
             ]);
 
             // Crear mueble
@@ -128,6 +121,12 @@ class FurnitureController extends Controller
                 'paint_per' => $request->paint_per,
                 'labor_fab_per' => $request->labor_fab_per
             ]);
+
+            //procesado de imagen
+            if ($request->hasFile('images')) {
+                $files = $request->file('images');
+                app(ProductImageController::class)->uploadImages($product->id, $files);
+            }
 
             // Procesar materiales
             $materialsData = [];
@@ -186,7 +185,8 @@ class FurnitureController extends Controller
             'paint_per' => 'sometimes|required|numeric|min:0',
             'labor_fab_per' => 'sometimes|required|numeric|min:0',
             'sell' => 'sometimes|required|boolean',
-            'image' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
+            'images' => 'nullable|array',
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
         if ($validator->fails()) {
@@ -214,12 +214,13 @@ class FurnitureController extends Controller
                 $product->sell = $request->sell;
             }
 
-            if ($request->hasFile('image')) {
-                if($product->image){
-                    // Eliminar la imagen anterior
-                    Storage::disk('public')->delete($product->image);
-                }
-                $product->image = $this->uploadPhoto($request);
+            // Procesar y almacenar nuevas imágenes
+            if ($request->hasFile('images')) {
+                // Eliminar las imágenes anteriores relacionadas con este producto (si es necesario)
+                $product->productImages()->delete(); // Elimina todas las imágenes actuales
+
+                $files = $request->file('images');
+                app(ProductImageController::class)->uploadImages($product->id, $files);
             }
 
             if($request->has('furnitureType_id')){
@@ -285,11 +286,9 @@ class FurnitureController extends Controller
             $product = $furniture->product;
 
             $furniture->delete();
-            if($product){
-                if($product->image){
-                    // Eliminar la imagen anterior
-                    Storage::disk('public')->delete($product->image);
-                }
+            if ($product) {
+                // Llamar al controlador de imágenes para eliminar las imágenes asociadas
+                app(ProductImageController::class)->deleteImages($product->id);
                 $product->delete();
             }
 

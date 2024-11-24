@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Material;
 use App\Models\Product;
-use App\Models\ProductImage;
 use Exception;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -111,8 +110,7 @@ class MaterialController extends Controller
             //procesado de imagen
             if ($request->hasFile('images')) {
                 $files = $request->file('images');
-                $productImageController = new ProductImage();
-                $productImageController->uploadImages($product->id, $files);
+                app(ProductImageController::class)->uploadImages($product->id, $files);
             }
 
             //Crear el material
@@ -200,8 +198,7 @@ class MaterialController extends Controller
                 $product->productImages()->delete(); // Elimina todas las imágenes actuales
 
                 $files = $request->file('images');
-                $productImageController = new ProductImageController();
-                $productImageController->uploadImages($product->id, $files); // Subir nuevas imágenes
+                app(ProductImageController::class)->uploadImages($product->id, $files);
             }
 
             // Sincronizar los tipos de material
