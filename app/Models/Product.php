@@ -10,8 +10,7 @@ class Product extends Model
         'name',
         'code',
         'description',
-        'sell',
-        'image'
+        'sell'
     ];
 
     public function material(){
@@ -33,5 +32,9 @@ class Product extends Model
     public function receipts(){
         return $this->belongsToMany(Receipt::class, 'receipts_products', 'product_id', 'receipt_id')
                     ->withPivot('quantity', 'price', 'discount');
+    }
+
+    public function images(){
+        return $this->hasMany(ProductImage::class);
     }
 }

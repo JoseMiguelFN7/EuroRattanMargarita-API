@@ -85,7 +85,7 @@ class SetController extends Controller
                 'image' => $image
             ]);
 
-            // Crear mueble
+            // Crear juego
             $set = Set::create([
                 'product_id' => $product->id,
                 'set_types_id' => $request->setType_id,
@@ -94,7 +94,7 @@ class SetController extends Controller
                 'labor_fab_per' => $request->labor_fab_per
             ]);
 
-            // Procesar materiales
+            // Procesar juego
             $furnituresData = [];
             foreach ($request->furnitures as $furniture) {
                 $furnituresData[$furniture['id']] = ['quantity' => $furniture['quantity']];

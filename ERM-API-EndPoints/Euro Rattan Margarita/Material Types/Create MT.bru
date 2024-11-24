@@ -6,6 +6,18 @@ meta {
 
 post {
   url: {{host}}materialType
-  body: none
-  auth: none
+  body: multipartForm
+  auth: bearer
+}
+
+headers {
+  Content-Type: multipart/form-data
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:multipart-form {
+  name: Relleno
 }

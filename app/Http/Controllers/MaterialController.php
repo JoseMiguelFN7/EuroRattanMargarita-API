@@ -5,31 +5,23 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Material;
 use App\Models\Product;
+use App\Models\ProductImage;
 use Exception;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 
 class MaterialController extends Controller
 {
-    public function uploadPhoto(Request $r){
-        // Obtener el archivo de la solicitud
-        $file = $r->file('image');
-
-        // Generar un nombre único para la imagen
-        $filename = time() . '-' . $file->getClientOriginalName();
-
-        // Subir la imagen al directorio 'productPics' dentro de 'storage/app/public/assets'
-        $url = $file->storeAs('assets/productPics', $filename, 'public');
-
-        return $url;
-    }
-
     //Obtener todos los materiales
     public function index(){
         $materials = Material::with(['materialTypes', 'product', 'unit'])->get()->map(function ($material) {
-            // Agregar la URL completa de la imagen al material
-            $material->product->image = $material->product->image ? asset('storage/' . $material->product->image) : null;
+            $product = $material->product;
+
+            // Agregar las URL completas de las imágenes del producto
+            $product->images = $product->images->map(function ($image) {
+                return asset('storage/' . $image->url);
+            });
+            
             return $material;
         });
 
@@ -45,9 +37,11 @@ class MaterialController extends Controller
             return response()->json(['message'=>'Material no encontrado'], 404);
         }
 
-        if ($material->product->image) {
-            $material->product->image = asset('storage/' . $material->product->image); // Generar la URL completa de la imagen
-        }
+        $product = $material->product;
+
+        $product->images = $product->images->map(function ($image) {
+            return asset('storage/' . $image->url); // Generar las URLs completas de las imágenes
+        });
 
         return response()->json($material);
     }
@@ -71,10 +65,12 @@ class MaterialController extends Controller
             ->take($quantity) // Limitar la cantidad
             ->get()
             ->map(function ($material) {
-                // Agregar la URL completa de la imagen al material
-                $material->product->image = $material->product->image ? asset('storage/' . $material->product->image) : null;
+                // Obtener solo la primera imagen del producto, si existe
+                $material->product->image = $material->product->images->first() 
+                    ? asset('storage/' . $material->product->images->first()->url) 
+                    : null;
                 return $material;
-            });;
+            });
 
         return response()->json($materials);
     }
@@ -90,7 +86,8 @@ class MaterialController extends Controller
             'price' => 'required|numeric',
             'unit_id' => 'required|numeric',
             'sell' => 'required|boolean',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
+            'images' => 'nullable|array',
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
         //enviar error si es necesario
@@ -103,20 +100,20 @@ class MaterialController extends Controller
         DB::beginTransaction();
 
         try{
-            //procesado de imagen
-            if ($request->hasFile('image')) {
-                $image = $this->uploadPhoto($request);
-            } else{
-                $image = null;
-            }
             //Crear el producto
             $product = Product::create([
                 'name' => $request->name,
                 'code' => $request->code,
                 'description' => $request->description,
-                'sell' => $request->sell,
-                'image' => $image
+                'sell' => $request->sell
             ]);
+
+            //procesado de imagen
+            if ($request->hasFile('images')) {
+                $files = $request->file('images');
+                $productImageController = new ProductImage();
+                $productImageController->uploadImages($product->id, $files);
+            }
 
             //Crear el material
             $material = Material::create([
@@ -164,7 +161,8 @@ class MaterialController extends Controller
             'material_type_ids.*' => 'integer|exists:material_types,id',
             'price' => 'sometimes|required|numeric|min:0',
             'unit_id' => 'sometimes|required|numeric',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
+            'images' => 'nullable|array',
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
         if ($validator->fails()) {
@@ -196,12 +194,14 @@ class MaterialController extends Controller
                 $material->price = $request->price;
             }
 
-            if ($request->hasFile('image')) {
-                if($product->image){
-                    // Eliminar la imagen anterior
-                    Storage::disk('public')->delete($product->image);
-                }
-                $product->image = $this->uploadPhoto($request);
+            // Procesar y almacenar nuevas imágenes
+            if ($request->hasFile('images')) {
+                // Eliminar las imágenes anteriores relacionadas con este producto (si es necesario)
+                $product->productImages()->delete(); // Elimina todas las imágenes actuales
+
+                $files = $request->file('images');
+                $productImageController = new ProductImageController();
+                $productImageController->uploadImages($product->id, $files); // Subir nuevas imágenes
             }
 
             // Sincronizar los tipos de material
@@ -256,11 +256,11 @@ class MaterialController extends Controller
             $product = $material->product;
 
             $material->delete();
-            if($product){
-                if($product->image){
-                    // Eliminar la imagen anterior
-                    Storage::disk('public')->delete($product->image);
-                }
+            // Eliminar las imágenes asociadas al producto
+
+            if ($product) {
+                // Llamar al controlador de imágenes para eliminar las imágenes asociadas
+                app(ProductImageController::class)->deleteImages($product->id);
                 $product->delete();
             }
 
