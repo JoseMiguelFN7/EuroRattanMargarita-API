@@ -106,8 +106,7 @@ class SetController extends Controller
                 'name' => $request->name,
                 'code' => $request->code,
                 'description' => $request->description,
-                'sell' => $request->sell,
-                'image' => $image
+                'sell' => $request->sell
             ]);
 
             // Crear juego
@@ -119,7 +118,13 @@ class SetController extends Controller
                 'labor_fab_per' => $request->labor_fab_per
             ]);
 
-            // Procesar juego
+            //procesado de imagen
+            if ($request->hasFile('images')) {
+                $files = $request->file('images');
+                app(ProductImageController::class)->uploadImages($product->id, $files);
+            }
+
+            // Procesar muebles
             $furnituresData = [];
             foreach ($request->furnitures as $furniture) {
                 $furnituresData[$furniture['id']] = ['quantity' => $furniture['quantity']];
@@ -166,7 +171,8 @@ class SetController extends Controller
             'paint_per' => 'sometimes|required|numeric|min:0',
             'labor_fab_per' => 'sometimes|required|numeric|min:0',
             'sell' => 'sometimes|required|boolean',
-            'image' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
+            'images' => 'nullable|array',
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048'
         ]);
 
         if ($validator->fails()) {
@@ -194,12 +200,13 @@ class SetController extends Controller
                 $product->sell = $request->sell;
             }
 
-            if ($request->hasFile('image')) {
-                if($product->image){
-                    // Eliminar la imagen anterior
-                    Storage::disk('public')->delete($product->image);
-                }
-                $product->image = $this->uploadPhoto($request);
+            // Procesar y almacenar nuevas imágenes
+            if ($request->hasFile('images')) {
+                // Eliminar las imágenes anteriores relacionadas con este producto (si es necesario)
+                $product->productImages()->delete(); // Elimina todas las imágenes actuales
+
+                $files = $request->file('images');
+                app(ProductImageController::class)->uploadImages($product->id, $files);
             }
 
             if($request->has('setType_id')){
@@ -257,11 +264,9 @@ class SetController extends Controller
             $product = $set->product;
 
             $set->delete();
-            if($product){
-                if($product->image){
-                    // Eliminar la imagen anterior
-                    Storage::disk('public')->delete($product->image);
-                }
+            if ($product) {
+                // Llamar al controlador de imágenes para eliminar las imágenes asociadas
+                app(ProductImageController::class)->deleteImages($product->id);
                 $product->delete();
             }
 

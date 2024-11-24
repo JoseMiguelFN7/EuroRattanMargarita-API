@@ -86,7 +86,7 @@ class MaterialController extends Controller
             'unit_id' => 'required|numeric',
             'sell' => 'required|boolean',
             'images' => 'nullable|array',
-            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048'
         ]);
 
         //enviar error si es necesario
@@ -160,7 +160,7 @@ class MaterialController extends Controller
             'price' => 'sometimes|required|numeric|min:0',
             'unit_id' => 'sometimes|required|numeric',
             'images' => 'nullable|array',
-            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048'
         ]);
 
         if ($validator->fails()) {
