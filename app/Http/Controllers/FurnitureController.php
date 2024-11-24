@@ -20,7 +20,7 @@ class FurnitureController extends Controller
             $product->images = $product->images->map(function ($image) {
                 return asset('storage/' . $image->url);
             });
-            
+
             return $furniture;
         });
 
@@ -56,7 +56,7 @@ class FurnitureController extends Controller
         }
 
         // Obtener registros aleatorios
-        $furnitures = Product::with(['furnitureType', 'product', 'unit'])
+        $furnitures = Product::with(['furnitureType', 'product'])
             ->whereHas('product', function ($query) {
                 $query->where('sell', true); // Filtrar por 'sell = true'
             })

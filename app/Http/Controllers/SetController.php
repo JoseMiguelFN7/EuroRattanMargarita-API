@@ -11,22 +11,19 @@ use Illuminate\Support\Facades\DB;
 
 class SetController extends Controller
 {
-    public function uploadPhoto(Request $r){
-        // Obtener el archivo de la solicitud
-        $file = $r->file('image');
-
-        // Generar un nombre único para la imagen
-        $filename = time() . '-' . $file->getClientOriginalName();
-
-        // Subir la imagen al directorio 'productPics' dentro de 'storage/app/public/assets'
-        $url = $file->storeAs('assets/productPics', $filename, 'public');
-
-        return $url;
-    }
-
     //Obtener todos los juegos
     public function index(){
-        $sets = Set::with(['setType', 'product'])->get();
+        $sets = Set::with(['setType', 'product'])->get()->map(function ($set) {
+            $product = $set->product;
+
+            // Agregar las URL completas de las imágenes del producto
+            $product->images = $product->images->map(function ($image) {
+                return asset('storage/' . $image->url);
+            });
+
+            return $set;
+        })
+        ;
         return response()->json($sets);
     }
 
@@ -39,7 +36,42 @@ class SetController extends Controller
             return response()->json(['message'=>'Juego no encontrado'], 404);
         }
 
+        $product = $set->product;
+
+        $product->images = $product->images->map(function ($image) {
+            return asset('storage/' . $image->url); // Generar las URLs completas de las imágenes
+        });
+
         return response()->json($set);
+    }
+
+    //Obtener una cantidad especifica de juegos en orden aleatorio
+    public function rand($quantity)
+    {
+        // Validar que el parámetro es un número entero positivo
+        if (!is_numeric($quantity) || $quantity <= 0) {
+            return response()->json([
+                'error' => 'La cantidad debe ser un número entero positivo.'
+            ], 400);
+        }
+
+        // Obtener registros aleatorios
+        $sets = Product::with(['setType', 'product'])
+            ->whereHas('product', function ($query) {
+                $query->where('sell', true); // Filtrar por 'sell = true'
+            })
+            ->inRandomOrder() // Seleccionar en orden aleatorio
+            ->take($quantity) // Limitar la cantidad
+            ->get()
+            ->map(function ($set) {
+                // Obtener solo la primera imagen del producto, si existe
+                $set->product->image = $set->product->images->first() 
+                    ? asset('storage/' . $set->product->images->first()->url) 
+                    : null;
+                return $set;
+            });
+
+        return response()->json($sets);
     }
 
     //Crear juego
@@ -69,13 +101,6 @@ class SetController extends Controller
         DB::beginTransaction();
 
         try {
-            // Procesado de imagen
-            if ($request->hasFile('image')) {
-                $image = $this->uploadPhoto($request);
-            } else {
-                $image = null;
-            }
-
             // Crear producto
             $product = Product::create([
                 'name' => $request->name,

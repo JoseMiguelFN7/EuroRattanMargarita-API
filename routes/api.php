@@ -30,7 +30,7 @@ Route::get('/unit/{id}', [App\Http\Controllers\UnitController::class, 'show']); 
 // Rutas para el CRUD de muebles
 Route::get('/furnitures', [App\Http\Controllers\FurnitureController::class, 'index']); // Obtener todos los materiales
 Route::get('/furniture/{id}', [App\Http\Controllers\FurnitureController::class, 'show']); // Obtener un material específico
-Route::get('/furnitures/{quantity}', [App\Http\Controllers\FurnitureController::class, 'rand']); // Obtener un material específico
+Route::get('/furnitures/{quantity}', [App\Http\Controllers\FurnitureController::class, 'rand']); // Obtener una cantidad de muebles en orden aleatorio
 
 
 // Rutas para el CRUD de tipos de muebles
@@ -40,6 +40,7 @@ Route::get('/furnitureType/{id}', [App\Http\Controllers\FurnitureTypeController:
 // Rutas para el CRUD de juegos
 Route::get('/sets', [App\Http\Controllers\SetController::class, 'index']); // Obtener todos los juegos
 Route::get('/set/{id}', [App\Http\Controllers\SetController::class, 'show']); // Obtener un juego específico
+Route::get('/sets/{quantity}', [App\Http\Controllers\SetController::class, 'rand']); // Obtener una cantidad de juegos en orden aleatorio
 
 // Rutas para el CRUD de tipos de juegos
 Route::get('/setTypes', [App\Http\Controllers\SetTypeController::class, 'index']); // Obtener todos los tipos de juego
