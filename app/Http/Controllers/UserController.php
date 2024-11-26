@@ -93,7 +93,7 @@ class UserController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'document' => $request->document,
-            'cellphone' => $$request->cellphone,
+            'cellphone' => $request->cellphone,
             'address' => $request->address,
             'role_id' => $role,
             'image' => $image

@@ -6,14 +6,13 @@ use Illuminate\Http\Request;
 use App\Models\Set;
 use App\Models\Product;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 
 class SetController extends Controller
 {
     //Obtener todos los juegos
     public function index(){
-        $sets = Set::with(['setType', 'product'])->get()->map(function ($set) {
+        $sets = Set::with(['setType', 'product.images', 'product.colors'])->get()->map(function ($set) {
             $product = $set->product;
 
             // Agregar las URL completas de las imágenes del producto
@@ -30,7 +29,7 @@ class SetController extends Controller
     //Obtener juego por ID
     public function show($id)
     {
-        $set = Set::with(['setType', 'product'])->find($id); //Busca el juego por ID
+        $set = Set::with(['setType', 'product.images', 'product.colors'])->find($id); //Busca el juego por ID
 
         if(!$set){
             return response()->json(['message'=>'Juego no encontrado'], 404);
@@ -56,7 +55,7 @@ class SetController extends Controller
         }
 
         // Obtener registros aleatorios
-        $sets = Product::with(['setType', 'product'])
+        $sets = Product::with(['setType', 'product.images'])
             ->whereHas('product', function ($query) {
                 $query->where('sell', true); // Filtrar por 'sell = true'
             })
@@ -88,7 +87,10 @@ class SetController extends Controller
             'paint_per' => 'required|numeric|min:0',
             'labor_fab_per' => 'required|numeric|min:0',
             'sell' => 'required|boolean',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
+            'discount' => 'required|numeric|min:0|max:100',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'colors' => 'nullable|array',
+            'colors.*' => 'string|regex:/^#([A-Fa-f0-9]{6})$/'
         ]);
 
         //enviar error si es necesario
@@ -131,6 +133,12 @@ class SetController extends Controller
             }
             $set->furnitures()->sync($furnituresData);
 
+            // Procesar colores
+            if ($request->has('colors')) {
+                $colorIds = app(ColorController::class)->getOrCreateColors($request->colors);
+                $product->colors()->sync($colorIds);
+            }
+
             // Confirmar la transacción
             DB::commit();
 
@@ -171,8 +179,11 @@ class SetController extends Controller
             'paint_per' => 'sometimes|required|numeric|min:0',
             'labor_fab_per' => 'sometimes|required|numeric|min:0',
             'sell' => 'sometimes|required|boolean',
+            'discount' => 'sometimes|required|numeric|min:0|max:100',
             'images' => 'nullable|array',
-            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048'
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+            'colors' => 'nullable|array',
+            'colors.*' => 'string|regex:/^#([A-Fa-f0-9]{6})$/'
         ]);
 
         if ($validator->fails()) {
@@ -198,6 +209,10 @@ class SetController extends Controller
 
             if($request->has('sell')){
                 $product->sell = $request->sell;
+            }
+
+            if($request->has('discount')){
+                $product->discount = $request->discount;
             }
 
             // Procesar y almacenar nuevas imágenes
@@ -233,6 +248,12 @@ class SetController extends Controller
                 $set->furnitures()->sync($furnituresData);
             }
 
+            // Procesar colores
+            if ($request->has('colors')) {
+                $colorIds = app(ColorController::class)->getOrCreateColors($request->colors);
+                $product->colors()->sync($colorIds);
+            }
+
             $product->save();
             $set->save();
             DB::commit();
@@ -265,8 +286,12 @@ class SetController extends Controller
 
             $set->delete();
             if ($product) {
+                // Llamar al controlador de colores para eliminar los colores asociadas
+                app(ColorController::class)->detachAndDeleteOrphanColors($product->id);
+
                 // Llamar al controlador de imágenes para eliminar las imágenes asociadas
                 app(ProductImageController::class)->deleteImages($product->id);
+                
                 $product->delete();
             }
 

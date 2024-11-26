@@ -10,7 +10,7 @@ class ProductController extends Controller
 {
     //Obtener todos los productos
     public function index(){
-        $products = Product::with(['material', 'furniture', 'set'])->get()->map(function ($product) {
+        $products = Product::with(['material', 'furniture', 'set', 'colors', 'images'])->get()->map(function ($product) {
             // Agregar la URL completa de la imagen al material
             $product->image = $product->image ? asset('storage/' . $product->image) : null;
             return $product;
@@ -21,7 +21,7 @@ class ProductController extends Controller
     //Obtener producto por ID
     public function show($id)
     {
-        $product = Product::with(['material', 'furniture', 'set'])->find($id); //Busca el producto por ID
+        $product = Product::with(['material', 'furniture', 'set', 'colors', 'images'])->find($id); //Busca el producto por ID
 
         if(!$product){
             return response()->json(['message'=>'Producto no encontrado'], 404);
@@ -44,14 +44,14 @@ class ProductController extends Controller
         }
 
         // Obtener productos con 'sell = true'
-        $products = Product::with(['material', 'furniture', 'set']) // Cargar relaciones necesarias
+        $products = Product::with(['material', 'furniture', 'set', 'images']) // Cargar relaciones necesarias
             ->where('sell', true) // Filtrar por 'sell = true'
             ->inRandomOrder() // Seleccionar en orden aleatorio
             ->take($quantity) // Limitar la cantidad
             ->get()
             ->map(function ($product) {
                 // Agregar la URL completa de la imagen al producto
-                $product->image = $product->image ? asset('storage/' . $product->image) : null;
+                $product->image = $product->images->first() ? asset('storage/' . $product->images->first()->url) : null;
 
                 // Determinar cuál relación tiene información para obtener el precio
                 if ($product->material) {
@@ -73,7 +73,7 @@ class ProductController extends Controller
     //Obtener producto por codigo
     public function showCod($cod)
     {
-        $product = Product::with(['material', 'furniture', 'set'])->where('cod', $cod)->first(); //Busca el producto por cod
+        $product = Product::with(['material', 'furniture', 'set', 'colors', 'images'])->where('cod', $cod)->first(); //Busca el producto por cod
 
         if(!$product){
             return response()->json(['message'=>'Producto no encontrado'], 404);

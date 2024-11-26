@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Receipt;
+use App\Models\Color;
+use App\Models\Product;
 use Illuminate\Http\Request;
 use App\Http\Controllers\ProductMovementController;
 use Illuminate\Support\Facades\Validator;
@@ -35,9 +37,10 @@ class ReceiptController extends Controller
             'user_id' => 'required|integer|exists:users,id',
             'products' => 'required|array',
             'products.*.id' => 'required|integer|exists:products,id',
+            'products.*.color' => 'required|integer|exists:colors,id',
             'products.*.quantity' => 'required|numeric|min:0',
             'products.*.price' => 'required|numeric|min:0',
-            'products.*.discount' => 'required|numeric|min:0|max:100',
+            'products.*.discount' => 'required|numeric|min:0|max:100'
         ]);
 
         //enviar error si es necesario
@@ -61,19 +64,32 @@ class ReceiptController extends Controller
             $movementController = new ProductMovementController();
 
             // Asociar productos a la factura y crear movimientos
-            foreach ($receipt->products as $product) {
+            foreach ($request->products as $productData) {
+                // Verificar si el producto y el color están relacionados correctamente
+                $product = Product::find($productData['id']);
+                $color = Color::find($productData['color']);
+
+                // Comprobar si el producto y el color existen
+                if (!$product || !$color) {
+                    return response()->json([
+                        'message' => 'Producto o color no encontrado',
+                    ], 404);
+                }
+
                 // Asociar producto a la factura (tabla intermedia)
-                $receipt->products()->attach($product['id'], [
-                    'quantity' => $product['quantity'],
-                    'price' => $product['price'],
-                    'discount' => $product['discount'],
+                $receipt->products()->attach($product->id, [
+                    'quantity' => $productData['quantity'],
+                    'price' => $productData['price'],
+                    'discount' => $productData['discount'],
+                    'color_id' => $productData['color']
                 ]);
 
-                // Llama a la función del controlador de movimientos
+                // Llamar a la función del controlador de movimientos
                 $movementController->createProductMovement(
-                    $product['id'],
-                    -abs($product['quantity']), // Cantidad negativa
-                    $now
+                    $product->id,
+                    -abs($productData['quantity']), // Cantidad negativa
+                    $now,
+                    $color->id
                 );
             }
 
@@ -108,6 +124,22 @@ class ReceiptController extends Controller
         DB::beginTransaction();
 
         try {
+            // Instancia del controlador de movimientos
+            $movementController = new ProductMovementController();
+
+            // Obtener productos asociados a la factura con su información adicional
+            $products = $receipt->products()->withPivot('quantity', 'color_id')->get();
+
+            foreach ($products as $product) {
+                // Crear movimiento opuesto (cantidad positiva)
+                $movementController->createProductMovement(
+                    $product->id,
+                    abs($product->pivot->quantity), // Cantidad en positivo
+                    now(),
+                    $product->pivot->color_id
+                );
+            }
+
             // Eliminar relaciones en la tabla intermedia
             $receipt->products()->detach();
 

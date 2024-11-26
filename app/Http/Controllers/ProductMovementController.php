@@ -72,11 +72,12 @@ class ProductMovementController extends Controller
     }
 
     // Método de creacion reutilizable
-    public function createProductMovement($productId, $quantity, $movementDate)
+    public function createProductMovement($productId, $quantity, $movementDate, $colorId)
     {
         return ProductMovement::create([
             'product_id' => $productId,
             'quantity' => $quantity,
+            'color_id' => $colorId,
             'movement_date' => $movementDate
         ]);
     }
@@ -111,6 +112,10 @@ class ProductMovementController extends Controller
 
         if($request->has('movement_date')){
             $productMovement->movement_date = $request->movement_date;
+        }
+
+        if($request->has('color_id')){
+            $productMovement->color_id = $request->color_id;
         }
 
         $productMovement->save();

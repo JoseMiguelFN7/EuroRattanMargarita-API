@@ -6,14 +6,13 @@ use Illuminate\Http\Request;
 use App\Models\Furniture;
 use App\Models\Product;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 
 class FurnitureController extends Controller
 {
     //Obtener todos los muebles
     public function index(){
-        $furnitures = Furniture::with(['furnitureType', 'product'])->get()->map(function ($furniture) {
+        $furnitures = Furniture::with(['furnitureType', 'product.images', 'product.colors'])->get()->map(function ($furniture) {
             $product = $furniture->product;
 
             // Agregar las URL completas de las imágenes del producto
@@ -30,7 +29,7 @@ class FurnitureController extends Controller
     //Obtener mueble por ID
     public function show($id)
     {
-        $furniture = Furniture::with(['furnitureType', 'product'])->find($id); //Busca el mueble por ID
+        $furniture = Furniture::with(['furnitureType', 'product.images', 'product.colors'])->find($id); //Busca el mueble por ID
 
         if(!$furniture){
             return response()->json(['message'=>'Mueble no encontrado'], 404);
@@ -56,7 +55,7 @@ class FurnitureController extends Controller
         }
 
         // Obtener registros aleatorios
-        $furnitures = Product::with(['furnitureType', 'product'])
+        $furnitures = Product::with(['furnitureType', 'product.images'])
             ->whereHas('product', function ($query) {
                 $query->where('sell', true); // Filtrar por 'sell = true'
             })
@@ -91,8 +90,11 @@ class FurnitureController extends Controller
             'paint_per' => 'required|numeric|min:0',
             'labor_fab_per' => 'required|numeric|min:0',
             'sell' => 'required|boolean',
+            'discount' => 'required|numeric|min:0|max:100',
             'images' => 'nullable|array',
-            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048'
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+            'colors' => 'nullable|array',
+            'colors.*' => 'string|regex:/^#([A-Fa-f0-9]{6})$/'
         ]);
 
         //enviar error si es necesario
@@ -111,6 +113,7 @@ class FurnitureController extends Controller
                 'code' => $request->code,
                 'description' => $request->description,
                 'sell' => $request->sell,
+                'discount' => $request->discount
             ]);
 
             // Crear mueble
@@ -141,6 +144,12 @@ class FurnitureController extends Controller
                 $laborsData[$labor['id']] = ['days' => $labor['days']];
             }
             $furniture->labors()->sync($laborsData);
+
+            // Procesar colores
+            if ($request->has('colors')) {
+                $colorIds = app(ColorController::class)->getOrCreateColors($request->colors);
+                $product->colors()->sync($colorIds);
+            }
 
             // Confirmar la transacción
             DB::commit();
@@ -185,8 +194,11 @@ class FurnitureController extends Controller
             'paint_per' => 'sometimes|required|numeric|min:0',
             'labor_fab_per' => 'sometimes|required|numeric|min:0',
             'sell' => 'sometimes|required|boolean',
+            'discount' => 'sometimes|required|numeric|min:0|max:100',
             'images' => 'nullable|array',
-            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048'
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+            'colors' => 'nullable|array',
+            'colors.*' => 'string|regex:/^#([A-Fa-f0-9]{6})$/'
         ]);
 
         if ($validator->fails()) {
@@ -212,6 +224,10 @@ class FurnitureController extends Controller
 
             if($request->has('sell')){
                 $product->sell = $request->sell;
+            }
+
+            if($request->has('discount')){
+                $product->discount = $request->discount;
             }
 
             // Procesar y almacenar nuevas imágenes
@@ -255,6 +271,12 @@ class FurnitureController extends Controller
                 $furniture->labors()->sync($laborsData);
             }
 
+            // Procesar colores
+            if ($request->has('colors')) {
+                $colorIds = app(ColorController::class)->getOrCreateColors($request->colors);
+                $product->colors()->sync($colorIds);
+            }
+
             $product->save();
             $furniture->save();
             DB::commit();
@@ -287,8 +309,12 @@ class FurnitureController extends Controller
 
             $furniture->delete();
             if ($product) {
+                // Llamar al controlador de colores para eliminar los colores asociadas
+                app(ColorController::class)->detachAndDeleteOrphanColors($product->id);
+
                 // Llamar al controlador de imágenes para eliminar las imágenes asociadas
                 app(ProductImageController::class)->deleteImages($product->id);
+                
                 $product->delete();
             }
 

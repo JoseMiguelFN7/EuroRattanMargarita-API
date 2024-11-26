@@ -10,7 +10,8 @@ class Product extends Model
         'name',
         'code',
         'description',
-        'sell'
+        'sell',
+        'discount'
     ];
 
     public function material(){
@@ -36,5 +37,9 @@ class Product extends Model
 
     public function images(){
         return $this->hasMany(ProductImage::class);
+    }
+
+    public function colors(){
+        return $this->belongsToMany(Color::class, 'products_colors', 'product_id', 'color_id');
     }
 }

@@ -13,7 +13,7 @@ class MaterialController extends Controller
 {
     //Obtener todos los materiales
     public function index(){
-        $materials = Material::with(['materialTypes', 'product', 'unit'])->get()->map(function ($material) {
+        $materials = Material::with(['materialTypes', 'unit', 'product.images', 'product.colors'])->get()->map(function ($material) {
             $product = $material->product;
 
             // Agregar las URL completas de las imágenes del producto
@@ -30,7 +30,7 @@ class MaterialController extends Controller
     //Obtener material por ID
     public function show($id)
     {
-        $material = Material::with(['materialTypes', 'product', 'unit'])->find($id); //Busca el material por ID
+        $material = Material::with(['materialTypes', 'unit', 'product.images', 'product.colors'])->find($id); //Busca el material por ID
 
         if(!$material){
             return response()->json(['message'=>'Material no encontrado'], 404);
@@ -56,7 +56,7 @@ class MaterialController extends Controller
         }
 
         // Obtener registros aleatorios
-        $materials = Material::with(['materialTypes', 'product', 'unit'])
+        $materials = Material::with(['materialTypes', 'unit', 'product.images'])
             ->whereHas('product', function ($query) {
                 $query->where('sell', true); // Filtrar por 'sell = true'
             })
@@ -83,10 +83,13 @@ class MaterialController extends Controller
             'material_type_ids' => 'required|array',
             'material_type_ids.*' => 'integer|exists:material_types,id',
             'price' => 'required|numeric',
+            'discount' => 'required|numeric|min:0|max:100',
             'unit_id' => 'required|numeric',
             'sell' => 'required|boolean',
             'images' => 'nullable|array',
-            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048'
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+            'colors' => 'nullable|array',
+            'colors.*' => 'string|regex:/^#([A-Fa-f0-9]{6})$/'
         ]);
 
         //enviar error si es necesario
@@ -104,7 +107,8 @@ class MaterialController extends Controller
                 'name' => $request->name,
                 'code' => $request->code,
                 'description' => $request->description,
-                'sell' => $request->sell
+                'sell' => $request->sell,
+                'discount' => $request->discount
             ]);
 
             //procesado de imagen
@@ -119,6 +123,12 @@ class MaterialController extends Controller
                 'unit_id' => $request->unit_id,
                 'price' => $request->price,
             ]);
+
+            // Procesar colores
+            if ($request->has('colors')) {
+                $colorIds = app(ColorController::class)->getOrCreateColors($request->colors);
+                $product->colors()->sync($colorIds);
+            }
 
             // Asociar los tipos de materiales con el material creado
             $material->materialTypes()->sync($request->material_type_ids);
@@ -158,9 +168,12 @@ class MaterialController extends Controller
             'material_type_ids' => 'sometimes|required|array',
             'material_type_ids.*' => 'integer|exists:material_types,id',
             'price' => 'sometimes|required|numeric|min:0',
+            'discount' => 'sometimes|required|numeric|min:0|max:100',
             'unit_id' => 'sometimes|required|numeric',
             'images' => 'nullable|array',
-            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048'
+            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+            'colors' => 'nullable|array',
+            'colors.*' => 'string|regex:/^#([A-Fa-f0-9]{6})$/'
         ]);
 
         if ($validator->fails()) {
@@ -186,6 +199,10 @@ class MaterialController extends Controller
 
             if($request->has('sell')){
                 $product->sell = $request->sell;
+            }
+
+            if($request->has('discount')){
+                $product->discount = $request->discount;
             }
 
             if($request->has('price')){
@@ -222,6 +239,12 @@ class MaterialController extends Controller
                 $material->labor_fab_per = $request->labor_fab_per;
             }
 
+            // Procesar colores
+            if ($request->has('colors')) {
+                $colorIds = app(ColorController::class)->getOrCreateColors($request->colors);
+                $product->colors()->sync($colorIds);
+            }
+
             $product->save();
             $material->save();
             DB::commit();
@@ -256,8 +279,12 @@ class MaterialController extends Controller
             // Eliminar las imágenes asociadas al producto
 
             if ($product) {
+                // Llamar al controlador de colores para eliminar los colores asociadas
+                app(ColorController::class)->detachAndDeleteOrphanColors($product->id);
+
                 // Llamar al controlador de imágenes para eliminar las imágenes asociadas
                 app(ProductImageController::class)->deleteImages($product->id);
+
                 $product->delete();
             }
 

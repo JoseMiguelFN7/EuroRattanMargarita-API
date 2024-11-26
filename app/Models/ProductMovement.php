@@ -9,6 +9,7 @@ class ProductMovement extends Model
     protected $fillable = [
         'product_id',
         'quantity',
+        'color_id',
         'movement_date'
     ];
 
