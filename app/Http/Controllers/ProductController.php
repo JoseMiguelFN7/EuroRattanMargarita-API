@@ -73,14 +73,18 @@ class ProductController extends Controller
     //Obtener producto por codigo
     public function showCod($cod)
     {
-        $product = Product::with(['material', 'furniture', 'set', 'colors', 'images'])->where('cod', $cod)->first(); //Busca el producto por cod
+        $product = Product::with(['material.materialTypes', 'furniture', 'set', 'colors', 'images'])->where('code', $cod)->first(); //Busca el producto por codigo
 
         if(!$product){
             return response()->json(['message'=>'Producto no encontrado'], 404);
         }
 
-        if ($product->image) {
-            $product->image = asset('storage/' . $product->image); // Generar la URL completa de la imagen
+        if ($product) {
+            // Modifica las URLs de todas las imágenes
+            $product->images = $product->images->map(function ($image) {
+                $image->url = asset('storage/' . $image->url);
+                return $image;
+            });
         }
 
         return response()->json($product);

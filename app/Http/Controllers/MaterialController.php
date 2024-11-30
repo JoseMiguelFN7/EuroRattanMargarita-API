@@ -74,6 +74,59 @@ class MaterialController extends Controller
         return response()->json($materials);
     }
 
+    public function randByMaterialType(Request $request, $quantity)
+    {
+        // Validar que el parámetro es un número entero positivo
+        if (!is_numeric($quantity) || $quantity <= 0) {
+            return response()->json([
+                'error' => 'La cantidad debe ser un número entero positivo.'
+            ], 400);
+        }
+
+        // Validar que se pasen los tipos de material en el request
+        if (!$request->has('materialTypes') || !is_array($request->input('materialTypes'))) {
+            return response()->json([
+                'error' => 'Debe proporcionar un array de tipos de material.'
+            ], 400);
+        }
+
+        $materialTypes = $request->input('materialTypes');
+
+        // Validar que se pase un código y que sea válido (si es necesario)
+        $codeToExclude = $request->input('code');
+        if ($codeToExclude && !is_string($codeToExclude)) {
+            return response()->json([
+                'error' => 'El código debe ser una cadena de texto válida.'
+            ], 400);
+        }
+
+        // Obtener productos cuyo tipo de material coincida con los tipos proporcionados en el request
+        $materials = Material::with(['materialTypes', 'unit', 'product.images'])
+            ->whereHas('materialTypes', function ($query) use ($materialTypes) {
+                $query->whereIn('name', $materialTypes); // Filtrar por tipos de material
+            })
+            ->whereHas('product', function ($query) use ($codeToExclude) {
+                $query->where('sell', true); // Filtrar por 'sell = true'
+
+                // Excluir producto con el código proporcionado
+                if ($codeToExclude) {
+                    $query->where('code', '!=', $codeToExclude);
+                }
+            })
+            ->inRandomOrder() // Seleccionar en orden aleatorio
+            ->take($quantity) // Limitar la cantidad
+            ->get()
+            ->map(function ($material) {
+                // Obtener solo la primera imagen del producto, si existe
+                $material->product->image = $material->product->images->first()
+                    ? asset('storage/' . $material->product->images->first()->url)
+                    : null;
+                return $material;
+            });
+
+        return response()->json($materials);
+    }
+
     //Crear material
     public function store(Request $request){
         $validator = Validator::make($request->all(), [

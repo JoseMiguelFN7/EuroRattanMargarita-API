@@ -131,7 +131,7 @@ class UserController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
             'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $id,
-            'password' => 'sometimes|required|string|min:8|confirmed',
+            'password' => 'sometimes|required|string|min:9|confirmed',
             'document' => 'sometimes|required|string|max:15|unique:users',
             'cellphone' => 'sometimes|required|string|min:12|max:12|unique:users',
             'address' => 'sometimes|required|string|max:500',
@@ -198,9 +198,9 @@ class UserController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
             'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . Auth::id(),
-            'password' => 'sometimes|required|string|min:8|confirmed',
-            'document' => 'sometimes|required|string|max:15|unique:users',
-            'cellphone' => 'sometimes|required|string|min:12|max:12|unique:users',
+            'password' => 'sometimes|required|string|min:9|confirmed',
+            'document' => 'sometimes|required|string|max:15|unique:users,document,' . Auth::id(),
+            'cellphone' => 'sometimes|required|string|min:12|max:12|unique:users,cellphone,' . Auth::id(),
             'address' => 'sometimes|required|string|max:500',
             'role_id' => 'sometimes|required|integer|exists:roles,id',
             'image' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
@@ -258,7 +258,7 @@ class UserController extends Controller
     {
         $validate = Validator::make($request->all(), [
             'email' => 'required|string|email|max:255',
-            'password' => 'required|string|min:8',
+            'password' => 'required|string|min:9',
         ]);
         
         if ( $validate->fails() ) {
