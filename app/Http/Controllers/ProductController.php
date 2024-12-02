@@ -90,6 +90,31 @@ class ProductController extends Controller
         return response()->json($product);
     }
 
+    //Obtener producto por codigo
+    public function ProductSearchByName($search)
+    {
+        $products = Product::where('name', 'LIKE', '%'.$search.'%')
+        ->with(['material', 'furniture', 'set', 'colors', 'images'])
+        ->get();
+
+        // Verificar si se encontraron productos
+        if ($products->isEmpty()) {
+            return response()->json(['message' => 'No se encontraron productos'], 404);
+        }
+
+        // Modificar las URLs de todas las imágenes de cada producto
+        $products->each(function ($product) {
+            $product->images = $product->images->map(function ($image) {
+                $image->url = asset('storage/' . $image->url);
+                return $image;
+            });
+
+            $product->image = $product->images[0]->url;
+        });
+
+        return response()->json($products);
+    }
+
     //Obtener todos los stocks
     public function indexStocks(){
         $productStocks = DB::table('product_stocks')->get();

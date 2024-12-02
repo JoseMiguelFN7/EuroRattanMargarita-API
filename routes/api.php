@@ -13,15 +13,18 @@ Route::get('/products', [App\Http\Controllers\ProductController::class, 'index']
 Route::get('/product/id/{id}', [App\Http\Controllers\ProductController::class, 'show']); // Obtener un producto específico por id
 Route::get('/products/{quantity}', [App\Http\Controllers\ProductController::class, 'rand']); // Obtener una cantidad de productos en orden aleatorio
 Route::get('/product/cod/{cod}', [App\Http\Controllers\ProductController::class, 'showCod']); // Obtener un producto específico por Cod
+Route::get('/product/search/{search}', [App\Http\Controllers\ProductController::class, 'ProductSearchByName']); // Obtener producto en base a busqueda por nombre
 
 // Rutas para el CRUD de tipos de materiales
 Route::get('/materialTypes', [App\Http\Controllers\MaterialTypeController::class, 'index']); // Obtener todos los tipos de material
 Route::get('/materialType/{id}', [App\Http\Controllers\MaterialTypeController::class, 'show']); // Obtener un tipo de material específico
 
+
 // Rutas para el CRUD de materiales
 Route::get('/materials', [App\Http\Controllers\MaterialController::class, 'index']); // Obtener todos los materiales
 Route::get('/material/{id}', [App\Http\Controllers\MaterialController::class, 'show']); // Obtener un material específico
 Route::get('/materials/{quantity}', [App\Http\Controllers\MaterialController::class, 'rand']); // Obtener una cantidad de materiales en orden aleatorio
+Route::get('/materialsByType/name/{name}', [App\Http\Controllers\MaterialController::class, 'indexByMaterialType']); // Obtener materiales segun tipo
 Route::get('/materialsByType/{quantity}', [App\Http\Controllers\MaterialController::class, 'randByMaterialType']); // Obtener una cantidad de materiales en orden aleatorio segun tipos
 
 // Rutas para el CRUD de unidades

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Material;
+use App\Models\MaterialType;
 use App\Models\Product;
 use Exception;
 use Illuminate\Support\Facades\Validator;
@@ -21,6 +22,8 @@ class MaterialController extends Controller
                 return asset('storage/' . $image->url);
             });
             
+            $material->product->image = $material->product->images[0];
+
             return $material;
         });
 
@@ -123,6 +126,46 @@ class MaterialController extends Controller
                     : null;
                 return $material;
             });
+
+        return response()->json($materials);
+    }
+
+    //Obtener todos los materiales de un tipo de material
+    public function indexByMaterialType($name)
+    {
+        // Obtener materiales cuyo tipo de material coincida con el solicitado
+        $materialType = MaterialType::where('name', $name)
+        ->with(['materials.product.images']) // Cargar relaciones necesarias
+        ->first();
+
+        // Validar si se encontró el tipo de material
+        if (!$materialType) {
+            return response()->json(['message' => 'No se encontró el tipo de material'], 404);
+        }
+
+        // Mapear los materiales para agregar la primera imagen del producto
+        $materials = $materialType->materials->map(function ($material) {
+            if (isset($material->product)) {
+                $material->product->image = $material->product->images->isNotEmpty()
+                    ? asset('storage/' . $material->product->images->first()->url)
+                    : null;
+            }
+            return $material;
+        });
+
+        // Obtener productos cuyo tipo de material coincida con los tipos proporcionados en el request
+        /*$material = Material::with(['materialTypes', 'unit', 'product.images'])
+            ->whereHas('materialTypes', function ($query) use ($materialType) {
+                $query->where('name', $materialType); // Filtrar por tipo de material
+            })
+            ->get()
+            ->map(function ($material) {
+                // Obtener solo la primera imagen del producto, si existe
+                $material->product->image = $material->product->images->first()
+                    ? asset('storage/' . $material->product->images->first()->url)
+                    : null;
+                return $material;
+            });*/
 
         return response()->json($materials);
     }
