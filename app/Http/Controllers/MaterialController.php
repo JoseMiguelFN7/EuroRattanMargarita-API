@@ -14,17 +14,21 @@ class MaterialController extends Controller
 {
     //Obtener todos los materiales
     public function index(){
-        $materials = Material::with(['materialTypes', 'unit', 'product.images', 'product.colors'])->get()->map(function ($material) {
-            $product = $material->product;
+        $materials = Material::with(['materialTypes', 'unit', 'product.images', 'product.colors'])
+            ->get()
+            ->map(function ($material) {
+                $product = $material->product;
 
-            // Agregar las URL completas de las imágenes del producto
-            $product->images = $product->images->map(function ($image) {
-                return asset('storage/' . $image->url);
-            });
-            
-            $material->product->image = $material->product->images[0];
+                // Agregar las URL completas de las imágenes del producto
+                if($product->images->isNotEmpty()){
+                    $product->images = $product->images->map(function ($image) {
+                        return asset('storage/' . $image->url);
+                    });
 
-            return $material;
+                    $material->product->image = $material->product->images[0];
+                }
+
+                return $material;
         });
 
         return response()->json($materials);

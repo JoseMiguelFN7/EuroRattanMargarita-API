@@ -15,10 +15,14 @@ class FurnitureController extends Controller
         $furnitures = Furniture::with(['furnitureType', 'product.images', 'product.colors'])->get()->map(function ($furniture) {
             $product = $furniture->product;
 
-            // Agregar las URL completas de las imágenes del producto
-            $product->images = $product->images->map(function ($image) {
-                return asset('storage/' . $image->url);
-            });
+            if($product->images->isNotEmpty()){
+                // Agregar las URL completas de las imágenes del producto
+                $product->images = $product->images->map(function ($image) {
+                    return asset('storage/' . $image->url);
+                });
+
+                $product->image = $product->images[0];
+            }
 
             return $furniture;
         });

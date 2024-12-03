@@ -15,14 +15,18 @@ class SetController extends Controller
         $sets = Set::with(['setType', 'product.images', 'product.colors'])->get()->map(function ($set) {
             $product = $set->product;
 
-            // Agregar las URL completas de las imágenes del producto
-            $product->images = $product->images->map(function ($image) {
-                return asset('storage/' . $image->url);
-            });
+            if($product->images->isNotEmpty()){
+                // Agregar las URL completas de las imágenes del producto
+                $product->images = $product->images->map(function ($image) {
+                    return asset('storage/' . $image->url);
+                });
+
+                $product->image = $product->images[0];
+            }
 
             return $set;
-        })
-        ;
+        });
+        
         return response()->json($sets);
     }
 
