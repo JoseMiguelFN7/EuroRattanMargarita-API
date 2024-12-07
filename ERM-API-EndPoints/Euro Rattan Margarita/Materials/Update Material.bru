@@ -6,7 +6,7 @@ meta {
 
 post {
   url: {{host}}material/11
-  body: multipartForm
+  body: json
   auth: bearer
 }
 
@@ -18,8 +18,16 @@ auth:bearer {
   token: {{token}}
 }
 
+body:json {
+  {
+    "colors": [
+      '#CDB093'
+    ]
+  }
+}
+
 body:multipart-form {
-  image: @file(C:\Users\José Ferreira\Downloads\Cierre-S60-1.png)
+  ~image: @file(D:\Multimedia\Euro Rattan\20220728_131307.png)
   ~unit_id: 2
   ~price: 10
   ~description: Grapas para grapadora manual Milford Linea 10-8. Caja de 5.000 grapas

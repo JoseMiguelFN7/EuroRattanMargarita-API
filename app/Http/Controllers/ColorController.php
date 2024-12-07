@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use app\Models\Color;
+use App\Models\Color;
 use Illuminate\Http\Request;
 
 class ColorController extends Controller
