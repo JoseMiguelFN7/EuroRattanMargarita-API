@@ -119,6 +119,22 @@ class UserController extends Controller
         return response()->json($user);
     }
 
+    //Obtener un usuario específico por correo
+    public function showEmail($email)
+    {
+        $user = User::with('role')->where('email', $email)->first(); //Busca el usuario por email
+
+        if(!$user){
+            return response()->json(['message'=>'Usuario no encontrado'], 404);
+        }
+
+        if ($user->image) {
+            $user->image = asset('storage/' . $user->image); // Generar la URL completa de la imagen
+        }
+
+        return response()->json($user);
+    }
+
     //Actualizar un usuario
     public function update(Request $request, $id)
     {
@@ -132,8 +148,8 @@ class UserController extends Controller
             'name' => 'sometimes|required|string|max:255',
             'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $id,
             'password' => 'sometimes|required|string|min:9|confirmed',
-            'document' => 'sometimes|required|string|max:15|unique:users',
-            'cellphone' => 'sometimes|required|string|min:12|max:12|unique:users',
+            'document' => 'sometimes|required|string|max:15|unique:users,document,' . $id,
+            'cellphone' => 'sometimes|required|string|min:12|max:12|unique:users,cellphone,' . $id,
             'address' => 'sometimes|required|string|max:500',
             'role_id' => 'sometimes|required|integer|exists:roles,id',
             'image' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif|max:2048'

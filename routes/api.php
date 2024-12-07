@@ -59,6 +59,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/user/logout',[App\Http\Controllers\UserController::class, 'logout']); //Logout
     Route::post('/user/{id}', [App\Http\Controllers\UserController::class, 'update']); // Actualizar un usuario
     Route::get('/user/{id}', [App\Http\Controllers\UserController::class, 'show']); // Obtener un usuario específico
+    Route::get('/user/email/{email}', [App\Http\Controllers\UserController::class, 'showEmail']); // Obtener un usuario específico por Email
     Route::delete('/user/{id}', [App\Http\Controllers\UserController::class, 'destroy']); // Eliminar un usuario
 
     // Rutas para el CRUD de roles
