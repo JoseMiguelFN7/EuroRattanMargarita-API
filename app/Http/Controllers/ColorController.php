@@ -37,7 +37,7 @@ class ColorController extends Controller
         // Comprobar si los colores asociados al producto ya no están relacionados con otros productos ni con movimientos
         foreach ($colors as $color) {
             // Comprobar si el color no tiene productos relacionados ni movimientos asociados
-            $hasMovements = $color->movements()->exists();
+            $hasMovements = $color->productMovements()->exists();
 
             if ($color->products_count === 0 && !$hasMovements) {
                 // Si el color no tiene productos ni movimientos asociados, lo eliminamos
