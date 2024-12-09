@@ -29,7 +29,7 @@ class MaterialTypeController extends Controller
     //Crear tipo de material
     public function store(Request $request){
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255'
+            'name' => 'required|string|max:255|unique:material_types,name'
         ]);
 
         if($validator->fails()){
@@ -54,7 +54,7 @@ class MaterialTypeController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|required|string|max:255'
+            'name' => 'sometimes|required|string|max:255|unique:material_types,name,' . $id
         ]);
 
         if($validator->fails()){

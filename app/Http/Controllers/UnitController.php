@@ -29,7 +29,7 @@ class UnitController extends Controller
     //Crear unidad
     public function store(Request $request){
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255'
+            'name' => 'required|string|max:255|unique:units,name'
         ]);
 
         if($validator->fails()){
@@ -54,7 +54,7 @@ class UnitController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|required|string|max:255'
+            'name' => 'sometimes|required|string|max:255|unique:units,name,' . $id
         ]);
 
         if($validator->fails()){

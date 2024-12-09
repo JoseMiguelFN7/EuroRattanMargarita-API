@@ -270,7 +270,7 @@ class MaterialController extends Controller
 
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
-            'code' => 'sometimes|required|string|max:255|unique:products',
+            'code' => 'sometimes|required|string|max:255|unique:products,code,' . $product->id,
             'description' => 'sometimes|required|string|max:500',
             'sell' => 'sometimes|required|boolean',
             'material_type_ids' => 'sometimes|required|array',
@@ -319,9 +319,10 @@ class MaterialController extends Controller
 
             // Procesar y almacenar nuevas imágenes
             if ($request->hasFile('images')) {
-                // Eliminar las imágenes anteriores relacionadas con este producto (si es necesario)
-                $product->images()->delete(); // Elimina todas las imágenes actuales
+                // Llamar al controlador de imágenes para eliminar las imágenes asociadas
+                app(ProductImageController::class)->deleteImages($product->id);
 
+                // Procesar las nuevas imágenes
                 $files = $request->file('images');
                 app(ProductImageController::class)->uploadImages($product->id, $files);
             }
