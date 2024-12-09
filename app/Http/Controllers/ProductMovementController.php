@@ -9,9 +9,40 @@ use Illuminate\Support\Facades\Validator;
 
 class ProductMovementController extends Controller
 {
-    //Obtener todos los movimientos
-    public function index(){
-        $productMovements = ProductMovement::with(['product'])->get();
+    // Obtener todos los movimientos ordenados por fecha descendente
+    public function index()
+    {
+        $productMovements = ProductMovement::with(['product.material', 'product.furniture', 'product.set', 'product.images', 'color'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        $processedProducts = []; // Arreglo para rastrear los productos procesados
+
+        // Mapear movimientos
+        $productMovements = $productMovements->map(function ($movement) use (&$processedProducts) {
+            if ($movement->product) {
+                $productId = $movement->product->id;
+
+                // Verificar si el producto ya fue procesado
+                if (!in_array($productId, $processedProducts)) {
+                    $movement->product->images = $movement->product->images->map(function ($image) {
+                        // Ajustar la URL solo si no es absoluta
+                        if (!str_starts_with($image->url, 'http://') && !str_starts_with($image->url, 'https://')) {
+                            $image->url = asset('storage/' . $image->url);
+                        }
+                        return $image;
+                    });
+
+                    $movement->product->image = $movement->product->images->first() ? $movement->product->images->first()->url : null;
+
+                    // Marcar el producto como procesado
+                    $processedProducts[] = $productId;
+                }
+            }
+
+            return $movement;
+        });
+
         return response()->json($productMovements, 200);
     }
 
