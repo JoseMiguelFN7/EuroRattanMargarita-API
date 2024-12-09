@@ -76,6 +76,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/unit/{id}', [App\Http\Controllers\UnitController::class, 'update']); //Actualizar una unidad
     Route::delete('/unit/{id}', [App\Http\Controllers\UnitController::class, 'destroy']); //Eliminar una unidad
 
+    //Rutas para el CRUD de Productos
+    Route::post('/product/codes/', [App\Http\Controllers\ProductController::class, 'showByCodeArray']); // Obtener productos por arreglo de Codigos
+
     //Rutas para el CRUD de materiales
     Route::post('/material', [App\Http\Controllers\MaterialController::class, 'store']); //Crear un material
     Route::post('/material/{id}', [App\Http\Controllers\MaterialController::class, 'update']); //Actualizar un material

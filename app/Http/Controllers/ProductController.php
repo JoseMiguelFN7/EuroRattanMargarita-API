@@ -98,6 +98,59 @@ class ProductController extends Controller
         return response()->json($product);
     }
 
+    // Obtener productos por arreglo de códigos desde el request
+    public function showByCodeArray(Request $request)
+    {
+        // Validar que el request contenga un array de códigos
+        $codes = $request->input('codes');
+
+        if (!$codes || !is_array($codes)) {
+            return response()->json(['message' => 'Se requiere un arreglo de códigos válido'], 400);
+        }
+
+        // Buscar los productos por los códigos proporcionados
+        $products = Product::with(['material.materialTypes', 'furniture', 'set', 'colors', 'images'])
+            ->whereIn('code', $codes)
+            ->get();
+
+        // Verificar si no se encontró algún producto
+        $foundCodes = $products->pluck('code')->toArray();
+        $missingCodes = array_diff($codes, $foundCodes);
+
+        if ($products->isEmpty()) {
+            return response()->json(['message' => 'Ningún producto encontrado para los códigos proporcionados'], 404);
+        }
+
+        // Modificar las URLs de las imágenes y agregar el stock a cada producto
+        $products = $products->map(function ($product) {
+            // Ajustar URLs de las imágenes
+            $product->images = $product->images->map(function ($image) {
+                $image->url = asset('storage/' . $image->url);
+                return $image;
+            });
+
+            $product->image = $product->images->first() ? $product->images->first()->url : null;
+
+            // Obtener el stock del producto
+            $productStock = DB::table('product_stocks')
+                ->where('productID', $product->id)
+                ->get();
+
+            // Agregar el stock al producto
+            $product->stock = $productStock;
+
+            return $product;
+        });
+
+        // Construir la respuesta
+        $response = [
+            'products' => $products,
+            'missingCodes' => $missingCodes, // Códigos que no se encontraron
+        ];
+
+        return response()->json($response);
+    }
+
     //Obtener producto por codigo
     public function ProductSearchByName($search)
     {
