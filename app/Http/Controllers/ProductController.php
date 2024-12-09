@@ -87,6 +87,14 @@ class ProductController extends Controller
             });
         }
 
+        // Obtener el stock del producto
+        $productStock = DB::table('product_stocks')
+            ->where('productID', $product->id)
+            ->get(); // Devuelve el stock asociado al producto
+
+        // Agregar el stock al producto en la respuesta
+        $product->stock = $productStock;
+
         return response()->json($product);
     }
 
@@ -126,8 +134,8 @@ class ProductController extends Controller
     public function showStock($id)
     {
         $productStock = DB::table('product_stocks')
-                        ->where('id', $id)
-                        ->first();
+                        ->where('productID', $id)
+                        ->get();
 
         if(!$productStock){
             return response()->json(['message'=>'Producto no encontrado'], 404);

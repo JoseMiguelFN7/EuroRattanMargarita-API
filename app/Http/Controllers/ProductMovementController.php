@@ -46,6 +46,7 @@ class ProductMovementController extends Controller
         $validator = Validator::make($request->all(), [
             'product_id' => 'required|exists:products,id',
             'quantity' => 'required|numeric',
+            'color_id' => 'sometimes|required|numeric|exists:colors,id',
             'movement_date' => 'sometimes|required|date'
         ]);
 
@@ -59,12 +60,14 @@ class ProductMovementController extends Controller
             $productMovement = ProductMovement::create([
                 'product_id' => $request->product_id,
                 'quantity' => $request->quantity,
+                'color_id' => $request->color_id,
                 'movement_date' => $request->movement_date
             ]);
         }else{
             $productMovement = ProductMovement::create([
                 'product_id' => $request->product_id,
-                'quantity' => $request->quantity
+                'quantity' => $request->quantity,
+                'color_id' => $request->color_id
             ]);
         }
 
@@ -93,6 +96,7 @@ class ProductMovementController extends Controller
         $validator = Validator::make($request->all(), [
             'product_id' => 'sometimes|required|exists:products,id',
             'quantity' => 'sometimes|required|numeric',
+            'color_id' => 'sometimes|required|numeric|exists:colors,id',
             'movement_date' => 'sometimes|required|date'
         ]);
 

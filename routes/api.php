@@ -15,10 +15,12 @@ Route::get('/products/{quantity}', [App\Http\Controllers\ProductController::clas
 Route::get('/product/cod/{cod}', [App\Http\Controllers\ProductController::class, 'showCod']); // Obtener un producto específico por Cod
 Route::get('/product/search/{search}', [App\Http\Controllers\ProductController::class, 'ProductSearchByName']); // Obtener producto en base a busqueda por nombre
 
+// Rutas para el CRUD de stocks
+Route::get('/product/stock/{id}', [App\Http\Controllers\ProductController::class, 'showStock']); // Obtener un stock específico
+
 // Rutas para el CRUD de tipos de materiales
 Route::get('/materialTypes', [App\Http\Controllers\MaterialTypeController::class, 'index']); // Obtener todos los tipos de material
 Route::get('/materialType/{id}', [App\Http\Controllers\MaterialTypeController::class, 'show']); // Obtener un tipo de material específico
-
 
 // Rutas para el CRUD de materiales
 Route::get('/materials', [App\Http\Controllers\MaterialController::class, 'index']); // Obtener todos los materiales
@@ -121,7 +123,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Rutas para el CRUD de stocks
     Route::get('/products/stocks', [App\Http\Controllers\ProductController::class, 'indexStocks']); // Obtener todos los stocks
-    Route::get('/product/stock/{id}', [App\Http\Controllers\ProductController::class, 'showStock']); // Obtener un stock específico
 
     // Rutas para el CRUD de Facturas
     Route::get('/receipts', [App\Http\Controllers\ReceiptController::class, 'index']); // Obtener todas las facturas
