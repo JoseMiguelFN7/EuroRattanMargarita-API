@@ -237,7 +237,7 @@ class FurnitureController extends Controller
             // Procesar y almacenar nuevas imágenes
             if ($request->hasFile('images')) {
                 // Eliminar las imágenes anteriores relacionadas con este producto (si es necesario)
-                $product->productImages()->delete(); // Elimina todas las imágenes actuales
+                $product->images()->delete(); // Elimina todas las imágenes actuales
 
                 $files = $request->file('images');
                 app(ProductImageController::class)->uploadImages($product->id, $files);

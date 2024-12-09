@@ -28,6 +28,14 @@ class MaterialController extends Controller
                     $material->product->image = $material->product->images[0];
                 }
 
+                // Obtener el stock del producto
+                $productStock = DB::table('product_stocks')
+                    ->where('productID', $product->id)
+                    ->get(); // Devuelve el stock asociado al producto
+
+                // Agregar el stock al producto en la respuesta
+                $product->stock = $productStock;
+
                 return $material;
         });
 
@@ -312,7 +320,7 @@ class MaterialController extends Controller
             // Procesar y almacenar nuevas imágenes
             if ($request->hasFile('images')) {
                 // Eliminar las imágenes anteriores relacionadas con este producto (si es necesario)
-                $product->productImages()->delete(); // Elimina todas las imágenes actuales
+                $product->images()->delete(); // Elimina todas las imágenes actuales
 
                 $files = $request->file('images');
                 app(ProductImageController::class)->uploadImages($product->id, $files);
