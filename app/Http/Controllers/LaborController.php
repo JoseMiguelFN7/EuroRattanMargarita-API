@@ -26,10 +26,20 @@ class LaborController extends Controller
         return response()->json($labor);
     }
 
+    //Obtener MO por nombre
+    public function showByName($name)
+    {
+        $labor = Labor::where('name', $name)->first(); //Busca el tipo de mueble por nombre
+        if(!$labor){
+            return response()->json(['message'=>'Mano de Obra no encontrada'], 404);
+        }
+        return response()->json($labor);
+    }
+
     //Crear MO
     public function store(Request $request){
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
+            'name' => 'required|string|max:255|unique:labors',
             'daily_pay' => 'required|numeric|min:0'
         ]);
 

@@ -101,6 +101,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Rutas para el CRUD de MO
     Route::get('/labors', [App\Http\Controllers\LaborController::class, 'index']); // Obtener todas las MO
+    Route::get('/labor/name/{name}', [App\Http\Controllers\LaborController::class, 'showByName']); // Obtener MO específica por nombre
     Route::get('/labor/{id}', [App\Http\Controllers\LaborController::class, 'show']); // Obtener MO específica
     Route::post('/labor', [App\Http\Controllers\LaborController::class, 'store']); //Crear una MO
     Route::post('/labor/{id}', [App\Http\Controllers\LaborController::class, 'update']); //Actualizar una MO
