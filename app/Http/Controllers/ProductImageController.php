@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\ProductImage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Intervention\Image\ImageManager;
+use Intervention\Image\Drivers\Gd\Driver;
 
 class ProductImageController extends Controller
 {
@@ -14,18 +16,27 @@ class ProductImageController extends Controller
 
         foreach ($files as $file) {
             // Generar un nombre único para la imagen
-            $filename = time() . '-' . $file->getClientOriginalName();
+            $filename = time() . '-' . pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME) . '.webp';
+            
+            // Crear una instancia de ImageManager
+            $manager = new ImageManager(new Driver());
 
-            // Subir la imagen al directorio 'productPics' dentro de 'storage/app/public/assets'
-            $url = $file->storeAs('assets/productPics', $filename, 'public');
+            // Cargar la imagen y convertirla a WebP usando Intervention Image
+            $webpImage = $manager->read($file)->toWebp(80);
+
+            // Definir la ruta para guardar la imagen convertida
+            $path = storage_path('app/public/assets/productPics/' . $filename);
+
+            // Guardar la imagen en la ubicación deseada
+            $webpImage->save($path);
 
             // Guardar en la base de datos
             $productImage = ProductImage::create([
-                'url' => $url,
+                'url' => 'assets/productPics/' . $filename,
                 'product_id' => $productId,
             ]);
 
-            $uploadedImages[] = $url; // Guardar la URL para devolverla
+            $uploadedImages[] = 'assets/productPics/' . $filename; // Guardar la URL para devolverla
         }
 
         return $uploadedImages;

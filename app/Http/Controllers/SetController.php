@@ -92,7 +92,7 @@ class SetController extends Controller
             'labor_fab_per' => 'required|numeric|min:0',
             'sell' => 'required|boolean',
             'discount' => 'required|numeric|min:0|max:100',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp,gif|max:2048',
             'colors' => 'nullable|array',
             'colors.*' => 'string|regex:/^#([A-Fa-f0-9]{6})$/'
         ]);

@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Intervention\Image\ImageManager;
+use Intervention\Image\Drivers\Gd\Driver;
 use Illuminate\Auth\AuthenticationException;
 
 class UserController extends Controller
@@ -44,12 +46,21 @@ class UserController extends Controller
         $file = $r->file('image');
 
         // Generar un nombre único para la imagen
-        $filename = time() . '-' . $file->getClientOriginalName();
+        $filename = time() . '-' . pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME) . '.webp';
 
-        // Subir la imagen al directorio 'profilePics' dentro de 'storage/app/public/assets'
-        $url = $file->storeAs('assets/profilePics', $filename, 'public');
+        // Crear una instancia de ImageManager
+        $manager = new ImageManager(new Driver());
 
-        return $url;
+        // Cargar la imagen y convertirla a WebP usando Intervention Image
+        $webpImage = $manager->read($file)->toWebp(80);
+
+        // Definir la ruta para guardar la imagen convertida
+        $path = storage_path('app/public/assets/profilePics/' . $filename);
+
+        // Guardar la imagen en la ubicación deseada
+        $webpImage->save($path);
+
+        return 'assets/profilePics/' . $filename;
     }
 
     //Crear un nuevo usuario
@@ -64,7 +75,7 @@ class UserController extends Controller
             'cellphone' => 'required|string|min:12|max:12|unique:users',
             'address' => 'required|string|max:500',
             'role_id' => 'sometimes|required|integer|exists:roles,id',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp,gif|max:2048'
         ]);
 
         //enviar error si es necesario
@@ -152,7 +163,7 @@ class UserController extends Controller
             'cellphone' => 'sometimes|required|string|min:12|max:12|unique:users,cellphone,' . $id,
             'address' => 'sometimes|required|string|max:500',
             'role_id' => 'sometimes|required|integer|exists:roles,id',
-            'image' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
+            'image' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,webp,gif|max:2048'
         ]);
         
         if ($validator->fails()) {
@@ -192,7 +203,11 @@ class UserController extends Controller
         if ($request->hasFile('image')) {
             if($user->image){
                 // Eliminar la imagen anterior
-                Storage::disk('public')->delete($user->image);
+                $previousImagePath = storage_path('app/public/' . $user->image);
+
+                if (file_exists($previousImagePath)) {
+                    unlink($previousImagePath); // Elimina la imagen anterior
+                }
             }
             $user->image = $this->uploadPhoto($request);
         }
@@ -219,7 +234,7 @@ class UserController extends Controller
             'cellphone' => 'sometimes|required|string|min:12|max:12|unique:users,cellphone,' . Auth::id(),
             'address' => 'sometimes|required|string|max:500',
             'role_id' => 'sometimes|required|integer|exists:roles,id',
-            'image' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
+            'image' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,webp,gif|max:2048'
         ]);
 
         if ($validator->fails()) {
