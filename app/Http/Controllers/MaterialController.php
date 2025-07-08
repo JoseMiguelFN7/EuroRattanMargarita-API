@@ -145,39 +145,44 @@ class MaterialController extends Controller
     //Obtener todos los materiales de un tipo de material
     public function indexByMaterialType($name)
     {
-        // Obtener materiales cuyo tipo de material coincida con el solicitado
+        // Obtener el tipo de material junto con los materiales y sus relaciones necesarias
         $materialType = MaterialType::where('name', $name)
-        ->with(['materials.product.images']) // Cargar relaciones necesarias
-        ->first();
+            ->with(['materials.materialTypes', 'materials.unit', 'materials.product.images', 'materials.product.colors'])
+            ->first();
 
         // Validar si se encontró el tipo de material
         if (!$materialType) {
             return response()->json(['message' => 'No se encontró el tipo de material'], 404);
         }
 
-        // Mapear los materiales para agregar la primera imagen del producto
+        // Mapear los materiales para aplicar el mismo formato que en index()
         $materials = $materialType->materials->map(function ($material) {
-            if (isset($material->product)) {
-                $material->product->image = $material->product->images->isNotEmpty()
-                    ? asset('storage/' . $material->product->images->first()->url)
-                    : null;
+            $product = $material->product;
+
+            if ($product) {
+                // Mapear las imágenes a URLs completas
+                if ($product->images->isNotEmpty()) {
+                    $product->images = $product->images->map(function ($image) {
+                        return asset('storage/' . $image->url);
+                    });
+
+                    // Asignar la primera imagen como `image`
+                    $material->product->image = $product->images[0];
+                } else {
+                    $material->product->images = [];
+                    $material->product->image = null;
+                }
+
+                // Obtener el stock desde la tabla product_stocks
+                $productStock = DB::table('product_stocks')
+                    ->where('productID', $product->id)
+                    ->get();
+
+                $product->stock = $productStock;
             }
+
             return $material;
         });
-
-        // Obtener productos cuyo tipo de material coincida con los tipos proporcionados en el request
-        /*$material = Material::with(['materialTypes', 'unit', 'product.images'])
-            ->whereHas('materialTypes', function ($query) use ($materialType) {
-                $query->where('name', $materialType); // Filtrar por tipo de material
-            })
-            ->get()
-            ->map(function ($material) {
-                // Obtener solo la primera imagen del producto, si existe
-                $material->product->image = $material->product->images->first()
-                    ? asset('storage/' . $material->product->images->first()->url)
-                    : null;
-                return $material;
-            });*/
 
         return response()->json($materials);
     }

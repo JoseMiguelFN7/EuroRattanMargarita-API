@@ -13,7 +13,7 @@ class Furniture extends Model
         'profit_per',
         'paint_per',
         'labor_fab_per',
-        'furnitureType_id'
+        'furniture_type_id'
     ];
 
     public function product()

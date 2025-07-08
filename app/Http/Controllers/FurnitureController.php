@@ -12,7 +12,7 @@ class FurnitureController extends Controller
 {
     //Obtener todos los muebles
     public function index(){
-        $furnitures = Furniture::with(['furnitureType', 'product.images', 'product.colors'])->get()->map(function ($furniture) {
+        $furnitures = Furniture::with(['furnitureType', 'product.images', 'product.colors', 'materials.materialTypes', 'labors'])->get()->map(function ($furniture) {
             $product = $furniture->product;
 
             if($product->images->isNotEmpty()){
@@ -23,6 +23,46 @@ class FurnitureController extends Controller
 
                 $product->image = $product->images[0];
             }
+
+            // Clasificar materiales
+            $insumosCost = $furniture->materials->filter(function ($material) {
+                return $material->materialTypes->contains('name', 'Insumo');
+            })->sum(function ($material) {
+                return $material->pivot->quantity * $material->price;
+            });
+
+            $tapiceriaCost = $furniture->materials->filter(function ($material) {
+                return $material->materialTypes->contains('name', 'Tapicería');
+            })->sum(function ($material) {
+                return $material->pivot->quantity * $material->price;
+            });
+
+            $manoObraCost = $furniture->labors->sum(function ($labor) {
+                return $labor->pivot->days * $labor->price;
+            });
+
+            // Parámetros
+            $profitPer = $furniture->profit_per ?? 0;
+            $paintPer = $furniture->paint_per ?? 0;
+            $laborFabPer = $furniture->labor_fab_per ?? 0;
+            $discount = $product->discount ?? 0;
+
+            // PVP NATURAL
+            $pvpNat = (
+                ($insumosCost + $manoObraCost + $tapiceriaCost * (1 + $laborFabPer / 100))
+                * (1 + $profitPer / 100)
+            ) * (1 - $discount / 100);
+
+            // PVP COLOR
+            $pvpCol = (
+                (
+                    ($insumosCost + $manoObraCost) * (1 + $paintPer / 100)
+                    + ($tapiceriaCost * (1 + $laborFabPer / 100))
+                ) * (1 + $profitPer / 100)
+            ) * (1 - $discount / 100);
+
+            $furniture->pvp_natural = round($pvpNat, 2);
+            $furniture->pvp_color = round($pvpCol, 2);
 
             return $furniture;
         });
@@ -123,7 +163,7 @@ class FurnitureController extends Controller
             // Crear mueble
             $furniture = Furniture::create([
                 'product_id' => $product->id,
-                'furniture_types_id' => $request->furnitureType_id,
+                'furniture_type_id' => $request->furnitureType_id,
                 'profit_per' => $request->profit_per,
                 'paint_per' => $request->paint_per,
                 'labor_fab_per' => $request->labor_fab_per

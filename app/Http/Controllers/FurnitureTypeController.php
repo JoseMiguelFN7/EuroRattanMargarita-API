@@ -26,6 +26,16 @@ class FurnitureTypeController extends Controller
         return response()->json($furnitureType);
     }
 
+    //Obtener tipo de mueble por nombre
+    public function showByName($name)
+    {
+        $furnitureType = FurnitureType::where('name', $name)->first(); //Busca el tipo de mueble por nombre
+        if(!$furnitureType){
+            return response()->json(['message'=>'Tipo de mueble no encontrado'], 404);
+        }
+        return response()->json($furnitureType);
+    }
+
     //Crear tipo de mueble
     public function store(Request $request){
         $validator = Validator::make($request->all(), [
