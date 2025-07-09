@@ -39,4 +39,48 @@ class Furniture extends Model
         return $this->belongsToMany(Set::class, 'sets_furnitures', 'furniture_id', 'set_id')
                     ->withPivot('quantity');
     }
+
+    public function calcularPrecios()
+    {
+        $insumosCost = $this->materials->filter(function ($material) {
+            return $material->materialTypes->contains('name', 'Insumo');
+        })->sum(function ($material) {
+            return $material->pivot->quantity * $material->price;
+        });
+
+        $tapiceriaCost = $this->materials->filter(function ($material) {
+            return $material->materialTypes->contains('name', 'Tapicería');
+        })->sum(function ($material) {
+            return $material->pivot->quantity * $material->price;
+        });
+
+        $manoObraCost = $this->labors->sum(function ($labor) {
+            return $labor->pivot->days * $labor->daily_pay;
+        });
+
+        $profitPer = $this->profit_per ?? 0;
+        $paintPer = $this->paint_per ?? 0;
+        $laborFabPer = $this->labor_fab_per ?? 0;
+        $discount = $this->product->discount ?? 0;
+
+        $pvpNatural = (
+            ($insumosCost + $manoObraCost + $tapiceriaCost * (1 + $laborFabPer / 100))
+            * (1 + $profitPer / 100)
+        ) * (1 - $discount / 100);
+
+        $pvpColor = (
+            (
+                ($insumosCost + $manoObraCost) * (1 + $paintPer / 100)
+                + ($tapiceriaCost * (1 + $laborFabPer / 100))
+            ) * (1 + $profitPer / 100)
+        ) * (1 - $discount / 100);
+
+        return [
+            'insumos' => round($insumosCost, 2),
+            'tapiceria' => round($tapiceriaCost, 2),
+            'mano_obra' => round($manoObraCost, 2),
+            'pvp_natural' => round($pvpNatural, 2),
+            'pvp_color' => round($pvpColor, 2),
+        ];
+    }
 }

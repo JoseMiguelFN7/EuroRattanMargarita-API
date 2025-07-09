@@ -24,45 +24,18 @@ class FurnitureController extends Controller
                 $product->image = $product->images[0];
             }
 
-            // Clasificar materiales
-            $insumosCost = $furniture->materials->filter(function ($material) {
-                return $material->materialTypes->contains('name', 'Insumo');
-            })->sum(function ($material) {
-                return $material->pivot->quantity * $material->price;
-            });
+            // Calcular precios
+            $precios = $furniture->calcularPrecios();
+            $furniture->pvp_natural = $precios['pvp_natural'];
+            $furniture->pvp_color = $precios['pvp_color'];
 
-            $tapiceriaCost = $furniture->materials->filter(function ($material) {
-                return $material->materialTypes->contains('name', 'Tapicería');
-            })->sum(function ($material) {
-                return $material->pivot->quantity * $material->price;
-            });
+            // Obtener el stock del producto
+            $productStock = DB::table('product_stocks')
+                ->where('productID', $product->id)
+                ->get(); // Devuelve el stock asociado al producto
 
-            $manoObraCost = $furniture->labors->sum(function ($labor) {
-                return $labor->pivot->days * $labor->price;
-            });
-
-            // Parámetros
-            $profitPer = $furniture->profit_per ?? 0;
-            $paintPer = $furniture->paint_per ?? 0;
-            $laborFabPer = $furniture->labor_fab_per ?? 0;
-            $discount = $product->discount ?? 0;
-
-            // PVP NATURAL
-            $pvpNat = (
-                ($insumosCost + $manoObraCost + $tapiceriaCost * (1 + $laborFabPer / 100))
-                * (1 + $profitPer / 100)
-            ) * (1 - $discount / 100);
-
-            // PVP COLOR
-            $pvpCol = (
-                (
-                    ($insumosCost + $manoObraCost) * (1 + $paintPer / 100)
-                    + ($tapiceriaCost * (1 + $laborFabPer / 100))
-                ) * (1 + $profitPer / 100)
-            ) * (1 - $discount / 100);
-
-            $furniture->pvp_natural = round($pvpNat, 2);
-            $furniture->pvp_color = round($pvpCol, 2);
+            // Agregar el stock al producto en la respuesta
+            $product->stock = $productStock;
 
             return $furniture;
         });
