@@ -198,7 +198,7 @@ class FurnitureController extends Controller
 
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
-            'code' => 'sometimes|required|string|max:255|unique:products',
+            'code' => 'sometimes|required|string|max:255|unique:products,code,' . $product->id,
             'description' => 'sometimes|required|string|max:500',
             'furnitureType_id' => 'sometimes|required|integer|exists:furniture_types,id',
             'materials' => 'sometimes|required|array',
@@ -257,7 +257,7 @@ class FurnitureController extends Controller
             }
 
             if($request->has('furnitureType_id')){
-                $furniture->furnitureType_id = $request->furnitureType_id;
+                $furniture->furniture_type_id = $request->furnitureType_id;
             }
 
             if($request->has('profit_per')){

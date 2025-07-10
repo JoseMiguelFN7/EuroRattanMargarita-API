@@ -73,7 +73,7 @@ class ProductController extends Controller
     //Obtener producto por codigo
     public function showCod($cod)
     {
-        $product = Product::with(['material.materialTypes', 'furniture', 'set', 'colors', 'images'])->where('code', $cod)->first(); //Busca el producto por codigo
+        $product = Product::with(['material.materialTypes', 'furniture.furnitureType', 'furniture.materials', 'furniture.labors', 'set', 'colors', 'images'])->where('code', $cod)->first(); //Busca el producto por codigo
 
         if(!$product){
             return response()->json(['message'=>'Producto no encontrado'], 404);
@@ -94,6 +94,13 @@ class ProductController extends Controller
 
         // Agregar el stock al producto en la respuesta
         $product->stock = $productStock;
+
+        // Si es mueble, calcular los precios
+        if ($product->furniture) {
+            $precios = $product->furniture->calcularPrecios();
+            $product->furniture->pvp_natural = $precios['pvp_natural'];
+            $product->furniture->pvp_color = $precios['pvp_color'];
+        }
 
         return response()->json($product);
     }
