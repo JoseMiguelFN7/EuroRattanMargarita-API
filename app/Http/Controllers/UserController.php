@@ -303,7 +303,13 @@ class UserController extends Controller
             return response()->json([
                 'token' => $request->user()->createToken(Hash::make('token'), ['server:update'])->plainTextToken,
                 'token_type' => 'Bearer',
-                'title' => 'Inicio de Sesión Exitoso'
+                'title' => 'Inicio de Sesión Exitoso',
+                'user' => [
+                    'name' => $request->user()->name,
+                    'email' => $request->user()->email,
+                    'role' => $request->user()->role->name,
+                    'image' => $request->user()->image ? asset('storage/' . $request->user()->image) : null
+                ]
             ],200);
         }
 

@@ -5,7 +5,12 @@ meta {
 }
 
 get {
-  url: {{host}}materials
+  url: {{host}}materials?per_page=2&page=2
   body: none
   auth: none
+}
+
+params:query {
+  per_page: 2
+  page: 2
 }

@@ -5,7 +5,11 @@ meta {
 }
 
 get {
-  url: {{host}}furnitures
+  url: {{host}}furnitures?per_page=2
   body: none
   auth: none
+}
+
+params:query {
+  per_page: 2
 }

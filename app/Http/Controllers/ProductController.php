@@ -158,26 +158,41 @@ class ProductController extends Controller
         return response()->json($response);
     }
 
-    //Obtener producto por codigo
-    public function ProductSearchByName($search)
+    //Obtener producto por nombre
+    public function ProductSearchByName(Request $request, $search)
     {
+        // 1. Configuración de Paginación
+        $perPage = $request->input('per_page', 8);
+
+        // 2. Query con Paginación
         $products = Product::where('name', 'LIKE', '%'.$search.'%')
-        ->with(['material', 'furniture', 'set', 'colors', 'images'])
-        ->get();
+            ->with(['material', 'furniture', 'set', 'colors', 'images'])
+            ->paginate($perPage);
 
-        // Verificar si se encontraron productos
-        if ($products->isEmpty()) {
-            return response()->json(['message' => 'No se encontraron productos'], 404);
-        }
+        // 3. Transformación
+        $products = $products->through(function ($product) {
+            
+            if ($product->images && $product->images->isNotEmpty()) {
+                // Mapeamos las URLs completas
+                $product->images = $product->images->map(function ($image) {
+                    $image->url = asset('storage/' . $image->url);
+                    return $image;
+                });
 
-        // Modificar las URLs de todas las imágenes de cada producto
-        $products->each(function ($product) {
-            $product->images = $product->images->map(function ($image) {
-                $image->url = asset('storage/' . $image->url);
-                return $image;
-            });
+                // Asignamos la imagen principal de forma segura
+                $product->image = $product->images[0]->url ?? null;
+            } else {
+                $product->images = [];
+                $product->image = null;
+            }
 
-            $product->image = $product->images[0]->url;
+            if($product->furniture){
+                $precios = $product->furniture->calcularPrecios();
+                $product->furniture->pvp_natural = $precios['pvp_natural'];
+                $product->furniture->pvp_color = $precios['pvp_color'];
+            }
+
+            return $product;
         });
 
         return response()->json($products);

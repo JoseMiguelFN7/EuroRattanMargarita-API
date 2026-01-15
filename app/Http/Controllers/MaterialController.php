@@ -13,30 +13,38 @@ use Illuminate\Support\Facades\DB;
 class MaterialController extends Controller
 {
     //Obtener todos los materiales
-    public function index(){
+    public function index(Request $request){
+
+        // 1. Definir paginación dinámica (lo recibe del front o usa 8 por defecto)
+        $perPage = $request->input('per_page', 8);
+
+        // 2. Usamos paginate() en lugar de get().
+        // Esto asegura que la DB solo traiga 8 registros
         $materials = Material::with(['materialTypes', 'unit', 'product.images', 'product.colors'])
-            ->get()
-            ->map(function ($material) {
-                $product = $material->product;
+            ->paginate($perPage);
 
-                // Agregar las URL completas de las imágenes del producto
-                if($product->images->isNotEmpty()){
-                    $product->images = $product->images->map(function ($image) {
-                        return asset('storage/' . $image->url);
-                    });
+        $materials->through(function ($material) {
+            $product = $material->product;
 
-                    $material->product->image = $material->product->images[0];
-                }
+            if ($product->images && $product->images->isNotEmpty()) {
+                $product->images = $product->images->map(function ($image) {
+                    return asset('storage/' . $image->url);
+                });
 
-                // Obtener el stock del producto
-                $productStock = DB::table('product_stocks')
-                    ->where('productID', $product->id)
-                    ->get(); // Devuelve el stock asociado al producto
+                $product->image = $product->images[0];
+            } else {
+                $product->images = [];
+                $product->image = null;
+            }
 
-                // Agregar el stock al producto en la respuesta
-                $product->stock = $productStock;
+            // Obtener el stock del producto
+            $productStock = DB::table('product_stocks')
+                ->where('productID', $product->id)
+                ->get();
 
-                return $material;
+            $product->stock = $productStock;
+
+            return $material;
         });
 
         return response()->json($materials);

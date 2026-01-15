@@ -23,7 +23,7 @@ Route::get('/materialTypes', [App\Http\Controllers\MaterialTypeController::class
 Route::get('/materialType/{id}', [App\Http\Controllers\MaterialTypeController::class, 'show']); // Obtener un tipo de material específico
 
 // Rutas para el CRUD de materiales
-Route::get('/materials', [App\Http\Controllers\MaterialController::class, 'index']); // Obtener todos los materiales
+Route::get('/materials', [App\Http\Controllers\MaterialController::class, 'index']); // Obtener todos los materiales con paginacion
 Route::get('/material/{id}', [App\Http\Controllers\MaterialController::class, 'show']); // Obtener un material específico
 Route::get('/materials/{quantity}', [App\Http\Controllers\MaterialController::class, 'rand']); // Obtener una cantidad de materiales en orden aleatorio
 Route::get('/materialsByType/name/{name}', [App\Http\Controllers\MaterialController::class, 'indexByMaterialType']); // Obtener materiales segun tipo

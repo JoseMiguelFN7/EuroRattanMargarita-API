@@ -10,32 +10,51 @@ use Illuminate\Support\Facades\DB;
 
 class FurnitureController extends Controller
 {
-    //Obtener todos los muebles
-    public function index(){
-        $furnitures = Furniture::with(['furnitureType', 'product.images', 'product.colors', 'materials.materialTypes', 'labors'])->get()->map(function ($furniture) {
+    // Obtener todos los muebles
+    public function index(Request $request)
+    {
+        $perPage = $request->input('per_page', 8);
+
+        $furnitures = Furniture::with([
+            'furnitureType', 
+            'product.images', 
+            'product.colors', 
+            'materials.materialTypes',
+            'labors'
+        ])
+        ->paginate($perPage);
+
+        // 2. TRANSFORMACIÓN
+        $furnitures = $furnitures->through(function ($furniture) {
+            
             $product = $furniture->product;
 
-            if($product->images->isNotEmpty()){
-                // Agregar las URL completas de las imágenes del producto
+            // --- Imágenes ---
+            if ($product->images && $product->images->isNotEmpty()) {
                 $product->images = $product->images->map(function ($image) {
                     return asset('storage/' . $image->url);
                 });
-
                 $product->image = $product->images[0];
+            } else {
+                $product->images = [];
+                $product->image = null;
             }
 
-            // Calcular precios
+            // --- Precios ---
             $precios = $furniture->calcularPrecios();
             $furniture->pvp_natural = $precios['pvp_natural'];
             $furniture->pvp_color = $precios['pvp_color'];
 
-            // Obtener el stock del producto
+            // --- Stock ---
             $productStock = DB::table('product_stocks')
                 ->where('productID', $product->id)
-                ->get(); // Devuelve el stock asociado al producto
+                ->get();
 
-            // Agregar el stock al producto en la respuesta
             $product->stock = $productStock;
+
+            // Ya usamos los materiales para calcular, ahora los ocultamos del JSON final.
+            // Esto reduce drásticamente el tamaño de la respuesta.
+            $furniture->makeHidden(['materials', 'labors']); 
 
             return $furniture;
         });
