@@ -58,6 +58,17 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->belongsTo(Role::class);
     }
 
+    public function hasPermission(string $permissionSlug): bool
+    {
+        // 1. Verificamos si el usuario tiene rol asignado
+        if (!$this->role) {
+            return false;
+        }
+
+        // 2. Verificamos si la relación ya está cargada para no hacer queries extra
+        return $this->role->permissions->contains('slug', $permissionSlug);
+    }
+
     public function receipts(){
         return $this->hasMany(Receipt::class, 'user_id');
     }

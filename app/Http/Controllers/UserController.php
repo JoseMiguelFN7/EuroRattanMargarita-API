@@ -308,7 +308,8 @@ class UserController extends Controller
                     'name' => $request->user()->name,
                     'email' => $request->user()->email,
                     'role' => $request->user()->role->name,
-                    'image' => $request->user()->image ? asset('storage/' . $request->user()->image) : null
+                    'image' => $request->user()->image ? asset('storage/' . $request->user()->image) : null,
+                    'permissions' => $request->user()->role->permissions->pluck('slug'),
                 ]
             ],200);
         }
