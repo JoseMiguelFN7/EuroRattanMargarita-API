@@ -22,11 +22,26 @@ class UserController extends Controller
             throw new AuthenticationException('Usuario no autenticado');
         }
 
+        $user->load('role.permissions');
+
         if ($user->image) {
             $user->image = asset('storage/' . $user->image); // Generar la URL completa de la imagen
         }
 
-        return $user;
+        $permissions = [];
+        $roleName = null;
+
+        if ($user->role) {
+            $permissions = $user->role->permissions->pluck('slug');
+            $roleName = $user->role->name;
+
+            $user->unsetRelation('role');
+        }
+
+        $user->role = $roleName; 
+        $user->permissions = $permissions;
+
+        return response()->json($user);
     }
 
     //Obtener todos los usuarios
