@@ -22,7 +22,12 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'view.client_dashboard', 'name' => 'Acceder al Panel de Clientes'],
             ],
 
-            // 2. MUEBLES
+            // 2. PRODUCTOS
+            'Productos' => [
+                ['slug' => 'products.buy',   'name' => 'Comprar Productos'],
+            ],
+
+            // 3. MUEBLES
             'Muebles' => [
                 ['slug' => 'furniture.view',   'name' => 'Ver Muebles'],
                 ['slug' => 'furniture.create', 'name' => 'Crear Muebles'],
@@ -30,7 +35,7 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'furniture.delete', 'name' => 'Eliminar Muebles'],
             ],
 
-            // 3. MATERIALES (Insumos/Tapicería)
+            // 4. MATERIALES (Insumos/Tapicería)
             'Materiales' => [
                 ['slug' => 'materials.view',   'name' => 'Ver Materiales'],
                 ['slug' => 'materials.create', 'name' => 'Crear Materiales'],
@@ -38,7 +43,7 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'materials.delete', 'name' => 'Eliminar Materiales'],
             ],
 
-            // 4. USUARIOS (Gestión de Staff y Clientes)
+            // 5. USUARIOS (Gestión de Staff y Clientes)
             'Usuarios' => [
                 ['slug' => 'users.view',   'name' => 'Ver Usuarios'],
                 ['slug' => 'users.create', 'name' => 'Crear Usuarios'],
@@ -46,7 +51,7 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'users.delete', 'name' => 'Eliminar Usuarios'],
             ],
 
-            // 5. ROLES Y PERMISOS
+            // 6. ROLES Y PERMISOS
             'Roles y Permisos' => [
                 ['slug' => 'roles.view',        'name' => 'Ver Roles'],
                 ['slug' => 'roles.create',      'name' => 'Crear Roles'],
