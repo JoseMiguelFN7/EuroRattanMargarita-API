@@ -10,6 +10,11 @@ class Role extends Model
         'name'
     ];
 
+    public static function getClientId()
+    {
+        return self::where('name', 'Cliente')->firstOrFail()->id;
+    }
+
     public function user()
     {
         return $this->hasMany(User::class);

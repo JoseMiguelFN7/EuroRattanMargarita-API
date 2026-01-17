@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\User;
+use App\Models\Role;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
@@ -90,7 +91,7 @@ class UserController extends Controller
             'cellphone' => 'required|string|min:12|max:12|unique:users',
             'address' => 'required|string|max:500',
             'role_id' => 'sometimes|required|integer|exists:roles,id',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp,gif|max:2048'
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048'
         ]);
 
         //enviar error si es necesario
@@ -122,6 +123,54 @@ class UserController extends Controller
             'cellphone' => $request->cellphone,
             'address' => $request->address,
             'role_id' => $role,
+            'image' => $image
+        ]);
+
+        // Retornar la respuesta
+        return response()->json($user, 201); // Devuelve el usuario creado con un código de estado 201
+    }
+
+    //Registrar un nuevo usuario (sin rol)
+    public function register(Request $request)
+    {
+        // Validar los datos de la solicitud
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:9|confirmed',
+            'document' => 'required|string|max:15|unique:users',
+            'cellphone' => 'required|string|min:12|max:12|unique:users',
+            'address' => 'required|string|max:500',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048'
+        ]);
+
+        //enviar error si es necesario
+        if ($validator->fails()) {
+            return response()->json([
+                'errors' => $validator->errors()->messages()
+            ], 422);
+        }
+
+        //procesar la imagen
+        if ($request->hasFile('image')) {
+            $image = $this->uploadPhoto($request);
+        } else{
+            $image = null;
+        }
+
+        $clientRole = Role::getClientId();
+
+        $user = new User();
+
+        // Crear el nuevo usuario
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'document' => $request->document,
+            'cellphone' => $request->cellphone,
+            'address' => $request->address,
+            'role_id' => $clientRole,
             'image' => $image
         ]);
 

@@ -6,7 +6,7 @@ use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 
 // Rutas para el CRUD de usuarios
 Route::post('/user/login',[App\Http\Controllers\UserController::class, 'login']); //Login
-Route::post('/user', [App\Http\Controllers\UserController::class, 'store']); // Crear un nuevo usuario
+Route::post('/user/register',[App\Http\Controllers\UserController::class, 'register']); //Register
 
 // Rutas para el CRUD de productos
 Route::get('/products', [App\Http\Controllers\ProductController::class, 'index']); // Obtener todos los productos
@@ -59,6 +59,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/user/auth', [App\Http\Controllers\UserController::class, 'updateAuthUser']); //Actualizar datos de usuario autenticado
     Route::delete('/user/auth', [App\Http\Controllers\UserController::class, 'destroyAuthUser']); //Eliminar usuario autenticado
     Route::get('/users', [App\Http\Controllers\UserController::class, 'index']); // Obtener todos los usuarios
+    Route::post('/user', [App\Http\Controllers\UserController::class, 'store']); // Crear un nuevo usuario (Staff)
     Route::post('/user/logout',[App\Http\Controllers\UserController::class, 'logout']); //Logout
     Route::post('/user/{id}', [App\Http\Controllers\UserController::class, 'update']); // Actualizar un usuario
     Route::get('/user/{id}', [App\Http\Controllers\UserController::class, 'show']); // Obtener un usuario específico
