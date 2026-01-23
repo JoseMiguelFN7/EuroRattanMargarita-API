@@ -45,16 +45,28 @@ class UserController extends Controller
         return response()->json($user);
     }
 
-    //Obtener todos los usuarios
-    public function index()
+    // Obtener todos los usuarios con paginación
+    public function index(Request $request)
     {
-        $users = User::with('role')->get()->map(function ($user) {
-            // Agregar la URL completa de la imagen al usuario
+        // 1. Configuración (Por defecto 10 usuarios por página)
+        $perPage = $request->input('per_page', 10);
+
+        // 2. Query con Paginación
+        $users = User::with('role')->paginate($perPage);
+
+        // 3. Transformación de datos
+        $users->through(function ($user) {
+            
+            // Transformar URL de imagen
             $user->image = $user->image ? asset('storage/' . $user->image) : null;
+            
+            $user->role_name = $user->role ? $user->role->name : null;
+            $user->unsetRelation('role'); // Oculta el objeto role completo
+
             return $user;
         });
 
-        return response()->json($users); // Devuelve todos los usuarios en formato JSON con la URL de la imagen
+        return response()->json($users);
     }
 
     private function uploadPhoto(Request $r){
@@ -374,6 +386,9 @@ class UserController extends Controller
                     'role' => $request->user()->role->name,
                     'image' => $request->user()->image ? asset('storage/' . $request->user()->image) : null,
                     'permissions' => $request->user()->role->permissions->pluck('slug'),
+                    'address' => $request->user()->address,
+                    'cellphone' => $request->user()->cellphone,
+                    'document' => $request->user()->document,
                 ]
             ],200);
         }
