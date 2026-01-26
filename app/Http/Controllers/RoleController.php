@@ -10,24 +10,35 @@ class RoleController extends Controller
 {
     //Obtener todos los usuarios
     public function index(Request $request)
-{
-    // 1. Configuración (10 por defecto)
-    $perPage = $request->input('per_page', 10);
+    {
+        // 1. Configuración (10 por defecto)
+        $perPage = $request->input('per_page', 10);
 
-    // 2. Consulta Paginada
-    $roles = Role::paginate($perPage);
+        // 2. Consulta Paginada
+        $roles = Role::with('permissions')->paginate($perPage);
 
-    return response()->json($roles);
-}
+        // 3. Limpieza
+        $roles->through(function ($role) {
+            
+            // Ocultamos la tabla pivote y fechas de cada permiso
+            $role->permissions->makeHidden(['slug', 'created_at', 'updated_at']);
+            
+            return $role;
+        });
+
+        return response()->json($roles);
+    }
 
     //Obtener rol por ID
     public function show($id)
     {
-        $role = Role::find($id); //Busca el rol por ID
+        $role = Role::with('permissions')->find($id); //Busca el rol por ID
 
         if(!$role){
             return response()->json(['message'=>'Rol no encontrado'], 404);
         }
+
+        $role->permissions->makeHidden(['pivot', 'slug', 'created_at', 'updated_at']);
 
         return response()->json($role);
     }
@@ -35,7 +46,9 @@ class RoleController extends Controller
     //Crear rol
     public function store(Request $request){
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255'
+            'name' => 'required|string|max:255',
+            'permissions' => 'required|array',
+            'permissions.*' => 'integer|exists:permissions,id'
         ]);
 
         if($validator->fails()){
@@ -47,6 +60,8 @@ class RoleController extends Controller
         $role = Role::create([
             'name' => $request->name
         ]);
+
+        $role->permissions()->sync($request->permissions);
 
         return response()->json($role, 201);
     }
@@ -60,7 +75,9 @@ class RoleController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|required|string|max:255'
+            'name' => 'sometimes|required|string|max:255',
+            'permissions' => 'sometimes|array',
+            'permissions.*' => 'integer|exists:permissions,id'
         ]);
 
         if($validator->fails()){
@@ -71,9 +88,14 @@ class RoleController extends Controller
 
         if($request->has('name')){
             $role->name = $request->name;
+            $role->save();
         }
 
-        $role->save();
+        if ($request->has('permissions')) {
+            $role->permissions()->sync($request->permissions);
+        }
+
+        $role->load('permissions');
 
         return response()->json($role);
     }

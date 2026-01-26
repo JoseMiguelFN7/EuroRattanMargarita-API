@@ -66,12 +66,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/user/email/{email}', [App\Http\Controllers\UserController::class, 'showEmail']); // Obtener un usuario específico por Email
     Route::delete('/user/{user}', [App\Http\Controllers\UserController::class, 'destroy']); // Eliminar un usuario
 
-    // Rutas para el CRUD de roles
+    // Rutas para el CRUD de roles y permisos
     Route::get('/roles', [App\Http\Controllers\RoleController::class, 'index']); // Obtener todos los roles
     Route::get('/role/{id}', [App\Http\Controllers\RoleController::class, 'show']); // Obtener un rol específico
     Route::post('/role', [App\Http\Controllers\RoleController::class, 'store']); //Crear un rol
     Route::post('/role/{id}', [App\Http\Controllers\RoleController::class, 'update']); //Actualizar un rol
     Route::delete('/role/{id}', [App\Http\Controllers\RoleController::class, 'destroy']); //Eliminar un rol
+    Route::get('/permissions', [App\Http\Controllers\PermissionController::class, 'index']); //Obtener todos los permisos
 
     //Rutas para el CRUD de unidades
     Route::post('/unit', [App\Http\Controllers\UnitController::class, 'store']); //Crear una unidad
