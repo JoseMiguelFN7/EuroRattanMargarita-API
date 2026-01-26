@@ -9,10 +9,16 @@ use Illuminate\Support\Facades\Validator;
 class RoleController extends Controller
 {
     //Obtener todos los usuarios
-    public function index(){
-        $roles = Role::all();
-        return response()->json($roles);
-    }
+    public function index(Request $request)
+{
+    // 1. Configuración (10 por defecto)
+    $perPage = $request->input('per_page', 10);
+
+    // 2. Consulta Paginada
+    $roles = Role::paginate($perPage);
+
+    return response()->json($roles);
+}
 
     //Obtener rol por ID
     public function show($id)
