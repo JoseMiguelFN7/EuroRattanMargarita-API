@@ -381,6 +381,7 @@ class UserController extends Controller
                 'token_type' => 'Bearer',
                 'title' => 'Inicio de Sesión Exitoso',
                 'user' => [
+                    'id' => $request->user()->id,
                     'name' => $request->user()->name,
                     'email' => $request->user()->email,
                     'role' => $request->user()->role->name,
