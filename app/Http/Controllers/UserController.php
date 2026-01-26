@@ -63,6 +63,8 @@ class UserController extends Controller
             $user->role_name = $user->role ? $user->role->name : null;
             $user->unsetRelation('role'); // Oculta el objeto role completo
 
+            $user->makeHidden(['id', 'role_id']);
+
             return $user;
         });
 
@@ -191,9 +193,9 @@ class UserController extends Controller
     }
 
     //Obtener un usuario específico
-    public function show($id)
+    public function show(User $user)
     {
-        $user = User::with('role')->find($id); //Busca el usuario por ID
+        $user->load('role');
 
         if(!$user){
             return response()->json(['message'=>'Usuario no encontrado'], 404);
@@ -202,6 +204,8 @@ class UserController extends Controller
         if ($user->image) {
             $user->image = asset('storage/' . $user->image); // Generar la URL completa de la imagen
         }
+
+        $user->makeHidden(['id']);
 
         return response()->json($user);
     }
@@ -223,20 +227,19 @@ class UserController extends Controller
     }
 
     //Actualizar un usuario
-    public function update(Request $request, $id)
+    public function update(Request $request, User $user)
     {
 
-        $user = User::find($id); // Buscar el usuario por ID
         if(!$user){
             return response()->json(['message'=>'Usuario no encontrado'], 404);
         }
 
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
-            'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $id,
+            'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $user->id,
             'password' => 'sometimes|required|string|min:9|confirmed',
-            'document' => 'sometimes|required|string|max:15|unique:users,document,' . $id,
-            'cellphone' => 'sometimes|required|string|min:12|max:12|unique:users,cellphone,' . $id,
+            'document' => 'sometimes|required|string|max:15|unique:users,document,' . $user->id,
+            'cellphone' => 'sometimes|required|string|min:12|max:12|unique:users,cellphone,' . $user->id,
             'address' => 'sometimes|required|string|max:500',
             'role_id' => 'sometimes|required|integer|exists:roles,id',
             'image' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,webp,gif|max:2048'
@@ -248,32 +251,10 @@ class UserController extends Controller
             ], 422);
         }
 
-        if($request->has('name')){
-            $user->name = $request->name;
-        }
-
-        if($request->has('email')){
-            $user->email = $request->email;
-        }
+        $user->fill($request->except(['password', 'image']));
 
         if($request->has('password')){
             $user->password = Hash::make($request->password);
-        }
-
-        if($request->has('document')){
-            $user->document = $request->document;
-        }
-
-        if($request->has('cellphone')){
-            $user->cellphone = $request->cellphone;
-        }
-
-        if($request->has('address')){
-            $user->address = $request->address;
-        }
-
-        if($request->has('role_id')){
-            $user->role_id = $request->role_id;
         }
 
         if ($request->hasFile('image')) {
@@ -381,7 +362,7 @@ class UserController extends Controller
                 'token_type' => 'Bearer',
                 'title' => 'Inicio de Sesión Exitoso',
                 'user' => [
-                    'id' => $request->user()->id,
+                    'uuid' => $request->user()->uuid,
                     'name' => $request->user()->name,
                     'email' => $request->user()->email,
                     'role' => $request->user()->role->name,
@@ -418,9 +399,8 @@ class UserController extends Controller
     }
 
     //Eliminar usuario
-    public function destroy($id)
+    public function destroy(User $user)
     {
-        $user = User::find($id);
 
         if(!$user){
             return response()->json(['message'=>'Usuario no encontrado'], 404);
