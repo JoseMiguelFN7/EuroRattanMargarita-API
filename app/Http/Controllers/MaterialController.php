@@ -13,36 +13,56 @@ use Illuminate\Support\Facades\DB;
 class MaterialController extends Controller
 {
     //Obtener todos los materiales
-    public function index(Request $request){
-
-        // 1. Definir paginación dinámica (lo recibe del front o usa 8 por defecto)
+    public function index(Request $request)
+    {
         $perPage = $request->input('per_page', 8);
 
-        // 2. Usamos paginate() en lugar de get().
-        // Esto asegura que la DB solo traiga 8 registros
-        $materials = Material::with(['materialTypes', 'unit', 'product.images', 'product.colors'])
-            ->paginate($perPage);
+        // 1. CARGA ANSIOSA (Eager Loading)
+        // Incluimos 'product.stocks' para que lea la VISTA automáticamente
+        $materials = Material::with([
+            'materialTypes', 
+            'unit', 
+            'product.images', 
+            'product.stocks'
+        ])->paginate($perPage);
 
+        // 2. LIMPIEZA DE DATOS
         $materials->through(function ($material) {
-            $product = $material->product;
+            
+            // --- Nivel Material ---
+            // Ocultamos IDs internos y timestamps que ensucian
+            $material->makeHidden(['created_at', 'updated_at', 'product_id', 'unit_id']);
 
-            if ($product->images && $product->images->isNotEmpty()) {
-                $product->images = $product->images->map(function ($image) {
-                    return asset('storage/' . $image->url);
-                });
+            // --- Nivel Producto ---
+            if ($material->product) {
+                $prod = $material->product;
 
-                $product->image = $product->images[0];
-            } else {
-                $product->images = [];
-                $product->image = null;
+                // A. Imagen: Solo enviamos la URL principal (string), no el array
+                $firstImage = $prod->images->first();
+                $prod->image = $firstImage ? asset('storage/' . $firstImage->url) : null;
+                
+                // B. Ocultamos la galería completa y datos innecesarios del producto
+                $prod->makeHidden(['created_at', 'updated_at', 'images', 'sell', 'description']);
+
+                // C. Stock (VISTA SQL): Limpiamos lo que sobra
+                // Como la vista ya trae 'productID' y 'stock', solo quitamos lo que no sirva
+                if ($prod->stocks) {
+                    // Ocultamos productID porque ya está dentro del objeto producto
+                    // y cualquier otro campo raro que traiga la vista
+                    $prod->stocks->makeHidden(['productID', 'productCode']); 
+                }
+                
+                // Nota: No necesitamos cargar 'colors' aparte si la vista ya trae el color
+                // Si la vista trae: { color: "#Hex", stock: 5 }, ya tienes todo.
             }
 
-            // Obtener el stock del producto
-            $productStock = DB::table('product_stocks')
-                ->where('productID', $product->id)
-                ->get();
-
-            $product->stock = $productStock;
+            // --- Nivel Tipos y Unidades ---
+            if ($material->materialTypes) {
+                $material->materialTypes->makeHidden(['pivot', 'created_at', 'updated_at']);
+            }
+            if ($material->unit) {
+                $material->unit->makeHidden(['created_at', 'updated_at', 'id']);
+            }
 
             return $material;
         });

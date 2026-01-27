@@ -42,4 +42,8 @@ class Product extends Model
     public function colors(){
         return $this->belongsToMany(Color::class, 'products_colors', 'product_id', 'color_id');
     }
+
+    public function stocks(){
+        return $this->hasMany(ProductStockView::class, 'productID', 'id');
+    }
 }
