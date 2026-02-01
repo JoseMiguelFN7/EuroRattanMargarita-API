@@ -51,7 +51,12 @@ class ProductController extends Controller
             ->get()
             ->map(function ($product) {
                 // Agregar la URL completa de la imagen al producto
-                $product->image = $product->images->first() ? asset('storage/' . $product->images->first()->url) : null;
+                $product->images->each(function ($image) {
+                    // 1. Generamos la URL completa
+                    $image->url = asset('storage/' . $image->url);
+                    // 2. Limpiamos la basura de cada objeto imagen
+                    $image->makeHidden(['created_at', 'updated_at', 'product_id']);
+                });
 
                 // Determinar cuál relación tiene información para obtener el precio
                 if ($product->material) {
@@ -73,33 +78,75 @@ class ProductController extends Controller
     //Obtener producto por codigo
     public function showCod($cod)
     {
-        $product = Product::with(['material.materialTypes', 'furniture.furnitureType', 'furniture.materials', 'furniture.labors', 'set', 'colors', 'images'])->where('code', $cod)->first(); //Busca el producto por codigo
+        // 1. CARGA DE RELACIONES (Usando la vista de stocks para rendimiento)
+        $product = Product::with([
+            'material.materialTypes', 
+            'material.unit', 
+            'furniture.furnitureType', 
+            'furniture.materials', 
+            'furniture.labors', 
+            'set', 
+            'images',
+            'stocks'
+        ])->where('code', $cod)->first();
 
-        if(!$product){
-            return response()->json(['message'=>'Producto no encontrado'], 404);
+        if (!$product) {
+            return response()->json(['message' => 'Producto no encontrado'], 404);
         }
 
-        if ($product) {
-            // Modifica las URLs de todas las imágenes
-            $product->images = $product->images->map(function ($image) {
-                $image->url = asset('storage/' . $image->url);
-                return $image;
-            });
+        // 2. LIMPIEZA DE PRODUCTO (Nivel Raíz)
+        // Mantenemos la estructura, solo ocultamos fechas y campos internos
+        $product->makeHidden(['created_at', 'updated_at']);
+
+        // 3. LIMPIEZA DE IMÁGENES
+        // NO las convertimos en strings simples. Mantenemos el array de objetos 
+        // porque tu front seguro espera 'image.url' o 'image.id'.
+        $product->images->each(function ($image) {
+            $image->url = asset('storage/' . $image->url);
+            $image->makeHidden(['created_at', 'updated_at', 'product_id']);
+        });
+
+        // 4. LIMPIEZA DEL STOCK
+        // Mantenemos el array de objetos, solo quitamos la redundancia
+        if ($product->stocks) {
+            $product->stocks->makeHidden(['productID', 'productCode']);
         }
 
-        // Obtener el stock del producto
-        $productStock = DB::table('product_stocks')
-            ->where('productID', $product->id)
-            ->get(); // Devuelve el stock asociado al producto
+        // 5. LIMPIEZA POLIMÓRFICA (Material / Mueble / Set)
+        
+        // --- CASO MATERIAL ---
+        if ($product->material) {
+            // Ocultamos los hermanos nulos para no enviar "furniture": null
+            $product->makeHidden(['furniture', 'set']);
+            
+            // Limpiamos el material
+            $product->material->makeHidden(['created_at', 'updated_at', 'product_id', 'unit_id']);
+            
+            // Limpiamos la Unidad (Mantenemos el objeto {id, name})
+            if ($product->material->unit) {
+                $product->material->unit->makeHidden(['created_at', 'updated_at']);
+            }
 
-        // Agregar el stock al producto en la respuesta
-        $product->stock = $productStock;
+            // Limpiamos los Tipos (Mantenemos array de objetos)
+            if ($product->material->materialTypes) {
+                $product->material->materialTypes->makeHidden(['pivot', 'created_at', 'updated_at']);
+            }
+        } 
+        
+        // --- CASO MUEBLE ---
+        elseif ($product->furniture) {
+            $product->makeHidden(['material', 'set']);
 
-        // Si es mueble, calcular los precios
-        if ($product->furniture) {
+            // Cálculos de precio (mantenemos tu lógica intacta)
             $precios = $product->furniture->calcularPrecios();
             $product->furniture->pvp_natural = $precios['pvp_natural'];
             $product->furniture->pvp_color = $precios['pvp_color'];
+
+            $product->furniture->makeHidden(['created_at', 'updated_at', 'product_id']);
+            
+            // Limpiar sub-relaciones manteniendo estructura
+            if($product->furniture->materials) $product->furniture->materials->makeHidden(['pivot', 'created_at', 'updated_at']);
+            if($product->furniture->labors) $product->furniture->labors->makeHidden(['pivot', 'created_at', 'updated_at']);
         }
 
         return response()->json($product);

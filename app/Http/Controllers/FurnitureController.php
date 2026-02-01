@@ -29,16 +29,12 @@ class FurnitureController extends Controller
             
             $product = $furniture->product;
 
-            // --- Imágenes ---
-            if ($product->images && $product->images->isNotEmpty()) {
-                $product->images = $product->images->map(function ($image) {
-                    return asset('storage/' . $image->url);
-                });
-                $product->image = $product->images[0];
-            } else {
-                $product->images = [];
-                $product->image = null;
-            }
+            $product->images->each(function ($image) {
+                // 1. Generamos la URL completa
+                $image->url = asset('storage/' . $image->url);
+                // 2. Limpiamos la basura de cada objeto imagen
+                $image->makeHidden(['created_at', 'updated_at', 'product_id']);
+            });
 
             // --- Precios ---
             $precios = $furniture->calcularPrecios();

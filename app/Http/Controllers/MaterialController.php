@@ -9,6 +9,7 @@ use App\Models\Product;
 use Exception;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class MaterialController extends Controller
 {
@@ -37,12 +38,15 @@ class MaterialController extends Controller
             if ($material->product) {
                 $prod = $material->product;
 
-                // A. Imagen: Solo enviamos la URL principal (string), no el array
-                $firstImage = $prod->images->first();
-                $prod->image = $firstImage ? asset('storage/' . $firstImage->url) : null;
+                $prod->images->each(function ($image) {
+                    // 1. Generamos la URL completa
+                    $image->url = asset('storage/' . $image->url);
+                    // 2. Limpiamos la basura de cada objeto imagen
+                    $image->makeHidden(['created_at', 'updated_at', 'product_id']);
+                });
                 
                 // B. Ocultamos la galería completa y datos innecesarios del producto
-                $prod->makeHidden(['created_at', 'updated_at', 'images', 'sell', 'description']);
+                $prod->makeHidden(['created_at', 'updated_at', 'sell', 'description']);
 
                 // C. Stock (VISTA SQL): Limpiamos lo que sobra
                 // Como la vista ya trae 'productID' y 'stock', solo quitamos lo que no sirva
@@ -84,6 +88,59 @@ class MaterialController extends Controller
         $product->images = $product->images->map(function ($image) {
             return asset('storage/' . $image->url); // Generar las URLs completas de las imágenes
         });
+
+        return response()->json($material);
+    }
+
+    public function showCod($cod)
+    {
+        // Usamos 'whereHas' para buscar el Material cuyo Producto tenga ese código.
+        $material = Material::with([
+            'unit', 
+            'materialTypes', 
+            'product.images', 
+            'product.stocks'
+        ])
+        ->whereHas('product', function ($query) use ($cod) {
+            $query->where('code', $cod);
+        })
+        ->first();
+
+        if (!$material) {
+            return response()->json(['message' => 'Material no encontrado'], 404);
+        }
+
+        // 2. LIMPIEZA NIVEL MATERIAL
+        // Ocultamos las FKs y fechas
+        $material->makeHidden(['created_at', 'updated_at', 'product_id', 'unit_id']);
+
+        // 3. LIMPIEZA DE RELACIONES DIRECTAS
+        if ($material->unit) {
+            $material->unit->makeHidden(['created_at', 'updated_at']);
+        }
+
+        if ($material->materialTypes) {
+            $material->materialTypes->makeHidden(['pivot', 'created_at', 'updated_at']);
+        }
+
+        // 4. LIMPIEZA DEL PRODUCTO PADRE
+        if ($material->product) {
+            $prod = $material->product;
+
+            // Limpieza básica del objeto producto
+            $prod->makeHidden(['created_at', 'updated_at', 'id']); // Ocultamos ID si ya tenemos el code
+
+            // Gestión de Imágenes (URL completa + limpieza)
+            $prod->images->each(function ($image) {
+                $image->url = asset('storage/' . $image->url);
+                $image->makeHidden(['created_at', 'updated_at', 'product_id']);
+            });
+
+            // Gestión de Stock (Solo limpieza, mantenemos el nombre 'stocks')
+            if ($prod->stocks) {
+                $prod->stocks->makeHidden(['created_at', 'updated_at', 'productID', 'productCode']);
+            }
+        }
 
         return response()->json($material);
     }
@@ -292,15 +349,17 @@ class MaterialController extends Controller
     }
 
     //actualizar material
-    public function update(Request $request, $id){
+    public function update(Request $request, $id)
+    {
         $material = Material::find($id);
 
-        if(!$material){
-            return response()->json(['message'=>'Material no encontrado'], 404);
+        if (!$material) {
+            return response()->json(['message' => 'Material no encontrado'], 404);
         }
 
         $product = $material->product;
 
+        // Validación (La mantuve igual, está correcta)
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
             'code' => 'sometimes|required|string|max:255|unique:products,code,' . $product->id,
@@ -313,6 +372,8 @@ class MaterialController extends Controller
             'unit_id' => 'sometimes|required|numeric|exists:units,id',
             'images' => 'nullable|array',
             'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+            'kept_images' => 'nullable|array',
+            'kept_images.*' => 'integer',
             'colors' => 'nullable|array',
             'colors.*' => 'string|regex:/^#([A-Fa-f0-9]{6})$/'
         ]);
@@ -325,79 +386,91 @@ class MaterialController extends Controller
 
         DB::beginTransaction();
 
-        try{
-            if($request->has('name')){
-                $product->name = $request->name;
+        try {
+            
+            // Actualizar datos del Producto
+            $product->fill($request->only([
+                'name', 'code', 'description', 'sell', 'discount'
+            ]));
+            
+            // Actualizar datos del Material
+            $material->fill($request->only([
+                'price', 'unit_id', 'profit_per', 'paint_per', 'labor_fab_per'
+            ]));
+
+            // 2. GESTIÓN DE IMÁGENES
+            if ($request->has('kept_images')) {
+            $keptIds = $request->input('kept_images');
+
+            // Aseguramos que sea un array (por si el front manda null o string vacío)
+            if (!is_array($keptIds)) {
+                $keptIds = [];
             }
 
-            if($request->has('code')){
-                $product->code = $request->code;
+            // OPTIMIZACIÓN: Buscamos directamente las imágenes que NO están en la lista
+            // Esto evita hacer un loop foreach sobre todas las imágenes si no es necesario
+            $imagesToDelete = $product->images()->whereNotIn('id', $keptIds)->get();
+
+            foreach ($imagesToDelete as $img) {
+                // 1. Borrar archivo físico
+                if (Storage::disk('public')->exists($img->url)) {
+                    Storage::disk('public')->delete($img->url);
+                }
+                // 2. Borrar registro de la BD
+                $img->delete();
             }
+        }
 
-            if($request->has('description')){
-                $product->description = $request->description;
+        // PASO B: AGREGAR NUEVAS (Las que vienen en el array images)
+        if ($request->hasFile('images')) {
+            // Aquí puedes llamar a tu ProductImageController o hacerlo inline.
+            // Lo hago inline para que veas la lógica completa aquí:
+            foreach ($request->file('images') as $file) {
+                // Guardamos en assets/productPics dentro del disco public
+                $path = $file->store('assets/productPics', 'public');
+                
+                // Creamos la relación
+                $product->images()->create([
+                    'url' => $path,
+                    // 'product_id' se asigna automático por la relación
+                ]);
             }
+        }
 
-            if($request->has('sell')){
-                $product->sell = $request->sell;
-            }
-
-            if($request->has('discount')){
-                $product->discount = $request->discount;
-            }
-
-            if($request->has('price')){
-                $material->price = $request->price;
-            }
-
-            // Procesar y almacenar nuevas imágenes
-            if ($request->hasFile('images')) {
-                // Llamar al controlador de imágenes para eliminar las imágenes asociadas
-                app(ProductImageController::class)->deleteImages($product->id);
-
-                // Procesar las nuevas imágenes
-                $files = $request->file('images');
-                app(ProductImageController::class)->uploadImages($product->id, $files);
-            }
-
-            // Sincronizar los tipos de material
+            // 3. TIPOS DE MATERIAL
             if ($request->has('material_type_ids')) {
+                // Sync maneja automáticamente las relaciones (agrega nuevas y borra viejas)
                 $material->materialTypes()->sync($request->material_type_ids);
             }
 
-            if($request->has('unit_id')){
-                $material->unit_id = $request->unit_id;
-            }
-
-            if($request->has('profit_per')){
-                $material->profit_per = $request->profit_per;
-            }
-
-            if($request->has('paint_per')){
-                $material->paint_per = $request->paint_per;
-            }
-
-            if($request->has('labor_fab_per')){
-                $material->labor_fab_per = $request->labor_fab_per;
-            }
-
-            // Procesar colores
+            // 4. GESTIÓN DE COLORES
             if ($request->has('colors')) {
-                $colorIds = app(ColorController::class)->getOrCreateColors($request->colors);
-                $product->colors()->sync($colorIds);
+                $colorsInput = $request->input('colors');
+
+                // Si viene un array con datos: Procesamos
+                if (is_array($colorsInput) && count($colorsInput) > 0) {
+                    $colorIds = app(ColorController::class)->getOrCreateColors($colorsInput);
+                    $product->colors()->sync($colorIds);
+                } 
+                // Si viene null o array vacío: Borramos relaciones
+                else {
+                    $product->colors()->sync([]);
+                }
             }
 
             $product->save();
             $material->save();
+            
             DB::commit();
-        }catch(Exception $e){
-            DB::rollback();
 
-            // Devolver el error
+            // 5. RESPUESTA ACTUALIZADA
+            $material->load(['product.colors', 'product.images', 'materialTypes', 'unit']);
+
+        } catch (Exception $e) {
+            DB::rollback();
             return response()->json([
                 'message' => 'Error al actualizar el material.',
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'error' => $e->getMessage()
             ], 500);
         }
 
