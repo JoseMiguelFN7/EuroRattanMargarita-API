@@ -7,6 +7,8 @@ use App\Models\Furniture;
 use App\Models\Product;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Storage;
 
 class FurnitureController extends Controller
 {
@@ -48,9 +50,10 @@ class FurnitureController extends Controller
 
             $product->stock = $productStock;
 
-            // Ya usamos los materiales para calcular, ahora los ocultamos del JSON final.
-            // Esto reduce drásticamente el tamaño de la respuesta.
-            $furniture->makeHidden(['materials', 'labors']); 
+            $product->makeHidden(['created_at', 'updated_at']);
+
+            $furniture->furnitureType->makeHidden(['created_at', 'updated_at']);
+            $furniture->makeHidden(['materials', 'labors', 'product_id', 'furniture_type_id', 'created_at', 'updated_at']);
 
             return $furniture;
         });
@@ -72,6 +75,78 @@ class FurnitureController extends Controller
         $product->images = $product->images->map(function ($image) {
             return asset('storage/' . $image->url); // Generar las URLs completas de las imágenes
         });
+
+        return response()->json($furniture);
+    }
+
+    //Obtener mueble por código
+    public function showCod($cod)
+    {
+        // 1. CARGA DE LA "RECETA"
+        // Cargamos materials y labors porque el formulario necesita saber 
+        // qué ingredientes componen este mueble actualmente.
+        $furniture = Furniture::whereHas('product', function ($query) use ($cod) {
+                $query->where('code', $cod);
+            })
+            ->with([
+                'furnitureType', 
+                'product.images', 
+                'product.stocks',
+                'materials',
+                'labors',
+            ])
+            ->first();
+
+        if (!$furniture) {
+            return response()->json(['message' => 'Mueble no encontrado'], 404);
+        }
+
+        // 2. LIMPIEZA DEL PADRE (PRODUCTO)
+        if ($furniture->product) {
+            $prod = $furniture->product;
+            
+            // Datos básicos
+            $prod->makeHidden(['created_at', 'updated_at']); 
+
+            // Imágenes (Array de objetos con URL absoluta)
+            $prod->images->each(function ($image) {
+                $image->url = asset('storage/' . $image->url);
+                $image->makeHidden(['created_at', 'updated_at', 'product_id']);
+            });
+
+            // Stock (Solo limpieza visual)
+            if ($prod->stocks) {
+                $prod->stocks->makeHidden(['productID', 'productCode']);
+            }
+        }
+
+        // 3. LIMPIEZA DEL HIJO (MUEBLE)
+        // Ocultamos fechas y FKs que no sirven en el form
+        $furniture->makeHidden(['product_id', 'furniture_type_id', 'created_at', 'updated_at']);
+
+        // 4. PREPARACIÓN DE INGREDIENTES (Materiales y Mano de Obra)
+        // Aquí NO ocultamos el 'pivot', porque ahí vive la 'cantidad' que necesitas poner en el input.
+        
+        if ($furniture->materials) {
+            // Solo ocultamos fechas del material, pero dejamos el ID, nombre, precio y el PIVOT
+            $furniture->materials->makeHidden(['created_at', 'updated_at', 'profit_per', 'paint_per', 'labor_fab_per']);
+            
+            // Opcional: Si quieres limpiar el pivot visualmente (quitar timestamps del pivot)
+            
+            $furniture->materials->each(function($mat){
+                if($mat->pivot) $mat->pivot->makeHidden(['created_at', 'updated_at']);
+            });
+            
+        }
+
+        if ($furniture->labors) {
+            $furniture->labors->makeHidden(['created_at', 'updated_at']);
+        }
+
+        // Tipo de Mueble (Solo nombre e ID para el select)
+        if ($furniture->furnitureType) {
+            $furniture->furnitureType->makeHidden(['created_at', 'updated_at']);
+        }
 
         return response()->json($furniture);
     }
@@ -201,121 +276,135 @@ class FurnitureController extends Controller
         }
     }
 
-    //actualizar mueble
-    public function update(Request $request, $id){
+    public function update(Request $request, $id)
+    {
         $furniture = Furniture::find($id);
 
-        if(!$furniture){
-            return response()->json(['message'=>'Mueble no encontrado'], 404);
+        if (!$furniture) {
+            return response()->json(['message' => 'Mueble no encontrado'], 404);
         }
 
         $product = $furniture->product;
 
+        // 1. VALIDACIÓN
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
-            'code' => 'sometimes|required|string|max:255|unique:products,code,' . $product->id,
+            'code' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('products', 'code')->ignore($product->id)],
             'description' => 'sometimes|required|string|max:500',
             'furnitureType_id' => 'sometimes|required|integer|exists:furniture_types,id',
+            // Arrays complejos (Pivotes)
             'materials' => 'sometimes|required|array',
             'materials.*.id' => 'required|integer|exists:materials,id',
             'materials.*.quantity' => 'required|numeric|min:0',
             'labors' => 'sometimes|required|array',
             'labors.*.id' => 'required|integer|exists:labors,id',
             'labors.*.days' => 'required|numeric|min:0',
+            // Costos
             'profit_per' => 'sometimes|required|numeric|min:0',
             'paint_per' => 'sometimes|required|numeric|min:0',
             'labor_fab_per' => 'sometimes|required|numeric|min:0',
             'sell' => 'sometimes|required|boolean',
             'discount' => 'sometimes|required|numeric|min:0|max:100',
+            // Imágenes (Lógica Nueva)
             'images' => 'nullable|array',
             'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+            'kept_images' => 'nullable|array',
+            'kept_images.*' => 'integer',
+            // Colores
             'colors' => 'nullable|array',
             'colors.*' => 'string|regex:/^#([A-Fa-f0-9]{6})$/'
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'errors' => $validator->errors()->messages()
-            ], 422);
+            return response()->json(['errors' => $validator->errors()->messages()], 422);
         }
 
         DB::beginTransaction();
 
         try {
-            if($request->has('name')){
-                $product->name = $request->name;
-            }
+            // 2. ACTUALIZACIÓN MASIVA (Cleaner Code)
+            $product->fill($request->only([
+                'name', 'code', 'description', 'sell', 'discount'
+            ]));
 
-            if($request->has('code')){
-                $product->code = $request->code;
-            }
-
-            if($request->has('description')){
-                $product->description = $request->description;
-            }
-
-            if($request->has('sell')){
-                $product->sell = $request->sell;
-            }
-
-            if($request->has('discount')){
-                $product->discount = $request->discount;
-            }
-
-            // Procesar y almacenar nuevas imágenes
-            if ($request->hasFile('images')) {
-                // Eliminar las imágenes anteriores relacionadas con este producto (si es necesario)
-                $product->images()->delete(); // Elimina todas las imágenes actuales
-
-                $files = $request->file('images');
-                app(ProductImageController::class)->uploadImages($product->id, $files);
-            }
-
-            if($request->has('furnitureType_id')){
+            // Ojo: mapemos 'furnitureType_id' del request al campo 'furniture_type_id' de la DB si difieren
+            if ($request->has('furnitureType_id')) {
                 $furniture->furniture_type_id = $request->furnitureType_id;
             }
+            
+            $furniture->fill($request->only([
+                'profit_per', 'paint_per', 'labor_fab_per'
+            ]));
 
-            if($request->has('profit_per')){
-                $furniture->profit_per = $request->profit_per;
+            // 3. GESTIÓN DE IMÁGENES (Lógica Replicada)
+            if ($request->has('kept_images')) {
+                $keptIds = $request->input('kept_images');
+                if (!is_array($keptIds)) $keptIds = [];
+
+                // Borramos solo las que NO están en la lista de kept_images
+                $imagesToDelete = $product->images()->whereNotIn('id', $keptIds)->get();
+
+                foreach ($imagesToDelete as $img) {
+                    if (Storage::disk('public')->exists($img->url)) {
+                        Storage::disk('public')->delete($img->url);
+                    }
+                    $img->delete();
+                }
             }
 
-            if($request->has('paint_per')){
-                $furniture->paint_per = $request->paint_per;
+            if ($request->hasFile('images')) {
+                foreach ($request->file('images') as $file) {
+                    $path = $file->store('assets/productPics', 'public');
+                    $product->images()->create(['url' => $path]);
+                }
             }
 
-            if($request->has('labor_fab_per')){
-                $furniture->labor_fab_per = $request->labor_fab_per;
-            }
-
-            // Sincronizar materiales con cantidades
+            // 4. SINCRONIZACIÓN DE COMPONENTES (Materiales y Mano de Obra)
             if ($request->has('materials')) {
+                // Preparamos el array con pivote ['quantity' => x]
                 $materialsData = collect($request->materials)->mapWithKeys(function ($material) {
                     return [$material['id'] => ['quantity' => $material['quantity']]];
                 })->toArray();
                 $furniture->materials()->sync($materialsData);
             }
 
-            // Sincronizar mano de obra con días
             if ($request->has('labors')) {
+                // Preparamos el array con pivote ['days' => x]
                 $laborsData = collect($request->labors)->mapWithKeys(function ($labor) {
                     return [$labor['id'] => ['days' => $labor['days']]];
                 })->toArray();
                 $furniture->labors()->sync($laborsData);
             }
 
-            // Procesar colores
+            // 5. GESTIÓN DE COLORES (Lógica Corregida)
             if ($request->has('colors')) {
-                $colorIds = app(ColorController::class)->getOrCreateColors($request->colors);
-                $product->colors()->sync($colorIds);
+                $colorsInput = $request->input('colors');
+
+                if (is_array($colorsInput) && count($colorsInput) > 0) {
+                    $colorIds = app(ColorController::class)->getOrCreateColors($colorsInput);
+                    $product->colors()->sync($colorIds);
+                } else {
+                    $product->colors()->sync([]);
+                }
             }
 
             $product->save();
             $furniture->save();
+            
             DB::commit();
+
+            // 6. RESPUESTA ACTUALIZADA
+            // Cargamos todo para que el front tenga la foto completa
+            $furniture->load([
+                'product.images', 
+                'product.colors', 
+                'materials', 
+                'labors', 
+                'furnitureType'
+            ]);
+
         } catch (\Exception $e) {
             DB::rollback();
-
-            // Devolver el error
             return response()->json([
                 'message' => 'Error al actualizar el mueble.',
                 'error' => $e->getMessage(),

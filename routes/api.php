@@ -36,7 +36,8 @@ Route::get('/unit/{id}', [App\Http\Controllers\UnitController::class, 'show']); 
 
 // Rutas para el CRUD de muebles
 Route::get('/furnitures', [App\Http\Controllers\FurnitureController::class, 'index']); // Obtener todos los materiales
-Route::get('/furniture/{id}', [App\Http\Controllers\FurnitureController::class, 'show']); // Obtener un material específico
+Route::get('/furniture/cod/{cod}', [App\Http\Controllers\FurnitureController::class, 'showCod']); // Obtener un mueble específico
+Route::get('/furniture/{id}', [App\Http\Controllers\FurnitureController::class, 'show']); // Obtener un mueble específico
 Route::get('/furnitures/{quantity}', [App\Http\Controllers\FurnitureController::class, 'rand']); // Obtener una cantidad de muebles en orden aleatorio
 
 
