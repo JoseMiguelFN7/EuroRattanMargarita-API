@@ -376,7 +376,7 @@ class FurnitureController extends Controller
                 $furniture->labors()->sync($laborsData);
             }
 
-            // 5. GESTIÓN DE COLORES (Lógica Corregida)
+            // 5. GESTIÓN DE COLORES
             if ($request->has('colors')) {
                 $colorsInput = $request->input('colors');
 
@@ -394,7 +394,6 @@ class FurnitureController extends Controller
             DB::commit();
 
             // 6. RESPUESTA ACTUALIZADA
-            // Cargamos todo para que el front tenga la foto completa
             $furniture->load([
                 'product.images', 
                 'product.colors', 
