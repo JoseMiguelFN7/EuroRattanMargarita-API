@@ -230,43 +230,64 @@ class MaterialController extends Controller
     //Obtener todos los materiales de un tipo de material
     public function indexByMaterialType($name)
     {
-        // Obtener el tipo de material junto con los materiales y sus relaciones necesarias
-        $materialType = MaterialType::where('name', $name)
-            ->with(['materials.materialTypes', 'materials.unit', 'materials.product.images', 'materials.product.colors'])
-            ->first();
-
-        // Validar si se encontró el tipo de material
-        if (!$materialType) {
-            return response()->json(['message' => 'No se encontró el tipo de material'], 404);
+        // 1. VERIFICAR EXISTENCIA DEL TIPO (Opcional, pero buena práctica)
+        if (!MaterialType::where('name', $name)->exists()) {
+             return response()->json(['message' => 'No se encontró el tipo de material'], 404);
         }
 
-        // Mapear los materiales para aplicar el mismo formato que en index()
-        $materials = $materialType->materials->map(function ($material) {
-            $product = $material->product;
+        // 2. QUERY OPTIMIZADA
+        // Usamos whereHas para filtrar materiales por el nombre de su tipo relacionado
+        $materials = Material::whereHas('materialTypes', function ($query) use ($name) {
+                $query->where('name', $name);
+            })
+            ->with([
+                'materialTypes',
+                'unit',
+                'product.images',
+                'product.colors',
+                'product.stocks'
+            ])
+            ->get();
 
-            if ($product) {
-                // Mapear las imágenes a URLs completas
-                if ($product->images->isNotEmpty()) {
-                    $product->images = $product->images->map(function ($image) {
-                        return asset('storage/' . $image->url);
-                    });
+        // 3. LIMPIEZA DE DATOS
+        $materials->each(function ($material) {
+            
+            // --- Nivel Material ---
+            // Ocultamos fechas, FKs y el 'pivot' que conecta con la búsqueda
+            $material->makeHidden(['created_at', 'updated_at', 'product_id', 'unit_id', 'pivot']);
 
-                    // Asignar la primera imagen como `image`
-                    $material->product->image = $product->images[0];
-                } else {
-                    $material->product->images = [];
-                    $material->product->image = null;
-                }
-
-                // Obtener el stock desde la tabla product_stocks
-                $productStock = DB::table('product_stocks')
-                    ->where('productID', $product->id)
-                    ->get();
-
-                $product->stock = $productStock;
+            // --- Nivel Relaciones Directas ---
+            if ($material->unit) {
+                $material->unit->makeHidden(['created_at', 'updated_at']);
             }
 
-            return $material;
+            if ($material->materialTypes) {
+                $material->materialTypes->makeHidden(['pivot', 'created_at', 'updated_at']);
+            }
+
+            // --- Nivel Producto ---
+            if ($material->product) {
+                $prod = $material->product;
+
+                // Limpieza del objeto producto
+                $prod->makeHidden(['created_at', 'updated_at', 'sell', 'description', 'id']);
+
+                // Procesar Imágenes (URLs absolutas + Limpieza)
+                $prod->images->each(function ($image) {
+                    $image->url = asset('storage/' . $image->url);
+                    $image->makeHidden(['created_at', 'updated_at', 'product_id']);
+                });
+
+                // Procesar Stock
+                if ($prod->stocks) {
+                    $prod->stocks->makeHidden(['productID', 'productCode']);
+                }
+
+                // Procesar Colores
+                if ($prod->colors) {
+                    $prod->colors->makeHidden(['pivot', 'created_at', 'updated_at']);
+                }
+            }
         });
 
         return response()->json($materials);
