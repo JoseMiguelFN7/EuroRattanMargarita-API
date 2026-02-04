@@ -122,6 +122,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/setType/{id}', [App\Http\Controllers\SetTypeController::class, 'update']); //Actualizar un tipo de juego
     Route::delete('/setType/{id}', [App\Http\Controllers\SetTypeController::class, 'destroy']); //Eliminar un tipo de juego
 
+    // Rutas para el CRUD de colores
+    Route::get('/colors', [App\Http\Controllers\ColorController::class, 'index']); // Obtener todos los colores
+    Route::post('/color', [App\Http\Controllers\ColorController::class, 'store']); //Crear un color
+    Route::delete('/color/{id}', [App\Http\Controllers\ColorController::class, 'delete']); //Eliminar un color
+
     //Rutas para el CRUD de movimientos de productos
     Route::get('/productMovements', [App\Http\Controllers\ProductMovementController::class, 'index']); // Obtener todos los movimientos
     Route::get('/productMovements/{id}', [App\Http\Controllers\ProductMovementController::class, 'indexProduct']); // Obtener todos los movimientos de un producto

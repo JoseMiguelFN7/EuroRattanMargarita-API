@@ -24,7 +24,7 @@ class MaterialController extends Controller
             'materialTypes', 
             'unit', 
             'product.images', 
-            'product.stocks'
+            'product.stocks',
         ])->paginate($perPage);
 
         // 2. LIMPIEZA DE DATOS
@@ -53,11 +53,8 @@ class MaterialController extends Controller
                 if ($prod->stocks) {
                     // Ocultamos productID porque ya está dentro del objeto producto
                     // y cualquier otro campo raro que traiga la vista
-                    $prod->stocks->makeHidden(['productID', 'productCode']); 
+                    $prod->stocks->makeHidden(['productID', 'productCode']);
                 }
-                
-                // Nota: No necesitamos cargar 'colors' aparte si la vista ya trae el color
-                // Si la vista trae: { color: "#Hex", stock: 5 }, ya tienes todo.
             }
 
             // --- Nivel Tipos y Unidades ---
@@ -99,7 +96,7 @@ class MaterialController extends Controller
             'unit', 
             'materialTypes', 
             'product.images', 
-            'product.stocks'
+            'product.colors'
         ])
         ->whereHas('product', function ($query) use ($cod) {
             $query->where('code', $cod);
@@ -136,9 +133,9 @@ class MaterialController extends Controller
                 $image->makeHidden(['created_at', 'updated_at', 'product_id']);
             });
 
-            // Gestión de Stock (Solo limpieza, mantenemos el nombre 'stocks')
-            if ($prod->stocks) {
-                $prod->stocks->makeHidden(['created_at', 'updated_at', 'productID', 'productCode']);
+            // Gestión de Colores (Limpieza)
+            if ($prod->colors) {
+                $prod->colors->makeHidden(['pivot', 'created_at', 'updated_at']);
             }
         }
 
@@ -308,7 +305,7 @@ class MaterialController extends Controller
             'images' => 'nullable|array',
             'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
             'colors' => 'nullable|array',
-            'colors.*' => 'string|regex:/^#([A-Fa-f0-9]{6})$/'
+            'colors.*' => 'integer|exists:colors,id'
         ]);
 
         //enviar error si es necesario
@@ -345,7 +342,7 @@ class MaterialController extends Controller
 
             // Procesar colores
             if ($request->has('colors')) {
-                $colorIds = app(ColorController::class)->getOrCreateColors($request->colors);
+                $colorIds = $request->input('colors');
                 $product->colors()->sync($colorIds);
             }
 
@@ -396,7 +393,7 @@ class MaterialController extends Controller
             'kept_images' => 'nullable|array',
             'kept_images.*' => 'integer',
             'colors' => 'nullable|array',
-            'colors.*' => 'string|regex:/^#([A-Fa-f0-9]{6})$/'
+            'colors.*' => 'integer|exists:colors,id'
         ]);
 
         if ($validator->fails()) {
@@ -466,17 +463,8 @@ class MaterialController extends Controller
 
             // 4. GESTIÓN DE COLORES
             if ($request->has('colors')) {
-                $colorsInput = $request->input('colors');
-
-                // Si viene un array con datos: Procesamos
-                if (is_array($colorsInput) && count($colorsInput) > 0) {
-                    $colorIds = app(ColorController::class)->getOrCreateColors($colorsInput);
-                    $product->colors()->sync($colorIds);
-                } 
-                // Si viene null o array vacío: Borramos relaciones
-                else {
-                    $product->colors()->sync([]);
-                }
+                $colorIds = $request->input('colors');
+                $product->colors()->sync($colorIds);
             }
 
             $product->save();

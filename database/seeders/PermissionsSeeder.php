@@ -29,10 +29,10 @@ class PermissionsSeeder extends Seeder
 
             // 3. MUEBLES
             'Muebles' => [
-                ['slug' => 'furniture.view',   'name' => 'Ver Muebles'],
-                ['slug' => 'furniture.create', 'name' => 'Crear Muebles'],
-                ['slug' => 'furniture.edit',   'name' => 'Editar Muebles'],
-                ['slug' => 'furniture.delete', 'name' => 'Eliminar Muebles'],
+                ['slug' => 'furnitures.view',   'name' => 'Ver Muebles'],
+                ['slug' => 'furnitures.create', 'name' => 'Crear Muebles'],
+                ['slug' => 'furnitures.edit',   'name' => 'Editar Muebles'],
+                ['slug' => 'furnitures.delete', 'name' => 'Eliminar Muebles'],
             ],
 
             // 4. MATERIALES (Insumos/Tapicería)
@@ -43,7 +43,15 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'materials.delete', 'name' => 'Eliminar Materiales'],
             ],
 
-            // 5. USUARIOS (Gestión de Staff y Clientes)
+            // 5. JUEGOS DE MUEBLES
+            'Juegos de Muebles' => [
+                ['slug' => 'sets.view',   'name' => 'Ver Juegos'],
+                ['slug' => 'sets.create', 'name' => 'Crear Juegos'],
+                ['slug' => 'sets.edit',   'name' => 'Editar Juegos'],
+                ['slug' => 'sets.delete', 'name' => 'Eliminar Juegos'],
+            ],
+
+            // 6. USUARIOS (Gestión de Staff y Clientes)
             'Usuarios' => [
                 ['slug' => 'users.view',   'name' => 'Ver Usuarios'],
                 ['slug' => 'users.create', 'name' => 'Crear Usuarios'],
@@ -51,7 +59,7 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'users.delete', 'name' => 'Eliminar Usuarios'],
             ],
 
-            // 6. ROLES Y PERMISOS
+            // 7. ROLES Y PERMISOS
             'Roles y Permisos' => [
                 ['slug' => 'roles.view',        'name' => 'Ver Roles'],
                 ['slug' => 'roles.create',      'name' => 'Crear Roles'],
