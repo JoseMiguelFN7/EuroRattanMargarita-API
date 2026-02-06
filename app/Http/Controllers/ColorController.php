@@ -7,14 +7,6 @@ use Illuminate\Http\Request;
 
 class ColorController extends Controller
 {
-    /*public function store($hex){
-        $color = Color::create([
-            'hex' => $hex
-        ]);
-
-        return $color;
-    }*/
-
     //Obtener todos los colores
     public function index(){
         $colors = Color::all();
@@ -35,6 +27,26 @@ class ColorController extends Controller
         ]);
 
         return response()->json($color, 201);
+    }
+
+    public function update(Request $request, $id){
+        $color = Color::find($id);
+
+        if(!$color){
+            return response()->json(['message' => 'Color not found'], 404);
+        }
+
+        $request->validate([
+            'hex' => 'required|string|unique:colors,hex,' . $color->id,
+            'name' => 'required|string|unique:colors,name,' . $color->id
+        ]);
+
+        $color->update([
+            'hex' => $request->hex,
+            'name' => $request->name
+        ]);
+
+        return response()->json($color);
     }
 
     public function delete($id){

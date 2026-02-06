@@ -127,6 +127,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Rutas para el CRUD de colores
     Route::get('/colors', [App\Http\Controllers\ColorController::class, 'index']); // Obtener todos los colores
     Route::post('/color', [App\Http\Controllers\ColorController::class, 'store']); //Crear un color
+    Route::post('/color/{id}', [App\Http\Controllers\ColorController::class, 'update']); //Actualizar un color
     Route::delete('/color/{id}', [App\Http\Controllers\ColorController::class, 'delete']); //Eliminar un color
 
     //Rutas para el CRUD de movimientos de productos
