@@ -7,26 +7,59 @@ use App\Models\Set;
 use App\Models\Product;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class SetController extends Controller
 {
     //Obtener todos los juegos
-    public function index(){
-        $sets = Set::with(['setType', 'product.images', 'product.colors'])->get()->map(function ($set) {
+    public function index(Request $request)
+    {
+        $perPage = $request->input('per_page', 10);
+
+        // 1. CARGA DE RELACIONES
+        // Necesitamos 'materials.materialTypes' para distinguir Insumo vs Tapicería
+        $sets = Set::with([
+            'setType', 
+            'product.images',
+            'furnitures.materials.materialTypes', 
+            'furnitures.labors',
+            'furnitures.product.stocks'
+        ])->paginate($perPage);
+
+        // 2. TRANSFORMACIÓN
+        $sets->through(function ($set) {
+            
+            // --- A. LLAMADO AL MODELO PARA CÁLCULOS ---
+            $precios = $set->calcularPrecios();
+            
+            $set->pvp_natural = $precios['pvp_natural'];
+            $set->pvp_color = $precios['pvp_color'];
+
+            // B. DISPONIBILIDAD DE COLORES
+            $set->available_colors = $set->calcularColoresDisponibles();
+
+            // --- C. LIMPIEZA VISUAL ---
             $product = $set->product;
-
-            if($product->images->isNotEmpty()){
-                // Agregar las URL completas de las imágenes del producto
-                $product->images = $product->images->map(function ($image) {
-                    return asset('storage/' . $image->url);
-                });
-
-                $product->image = $product->images[0];
+            if ($product) {
+                // Imagen para la tabla
+                if ($product->images->isNotEmpty()) {
+                    $product->image = asset('storage/' . $product->images->first()->url);
+                } else {
+                    $product->image = null;
+                }
+                // Ocultamos datos pesados del producto
+                $product->makeHidden(['created_at', 'updated_at', 'description', 'sell', 'images', 'stocks']);
             }
+
+            if ($set->setType) $set->setType->makeHidden(['created_at', 'updated_at']);
+
+            // Ocultamos la lógica interna del Set
+            $set->makeHidden(['furnitures', 'product_id', 'set_types_id', 'created_at', 'updated_at']);
 
             return $set;
         });
-        
+
         return response()->json($sets);
     }
 
@@ -43,6 +76,62 @@ class SetController extends Controller
 
         $product->images = $product->images->map(function ($image) {
             return asset('storage/' . $image->url); // Generar las URLs completas de las imágenes
+        });
+
+        return response()->json($set);
+    }
+
+    public function showCod($code)
+    {
+        // 1. CARGA DE RELACIONES
+        // Agregamos 'furnitures.product' para saber el nombre de las sillas/mesas que componen el juego
+        // Agregamos 'furnitures.furnitureType' por si necesitas mostrar la categoría
+        $set = Set::with([
+                'setType', 
+                'product.images', 
+                'furnitures', // Foto del componente
+            ])
+            ->whereHas('product', function ($query) use ($code) {
+                $query->where('code', $code);
+            })->first();
+
+        if (!$set) {
+            return response()->json(['message' => 'Juego no encontrado'], 404);
+        }
+
+        // 2. LIMPIEZA DEL JUEGO (PADRE)
+        $set->makeHidden(['created_at', 'updated_at', 'product_id', 'set_types_id']);
+        if ($set->setType) $set->setType->makeHidden(['created_at', 'updated_at']);
+
+        // 3. LIMPIEZA DEL PRODUCTO PRINCIPAL
+        if ($set->product) {
+            $set->product->images->each(function ($image) {
+                $image->url = asset('storage/' . $image->url);
+                $image->makeHidden(['created_at', 'updated_at', 'product_id']);
+            });
+            
+            $set->product->makeHidden(['created_at', 'updated_at']); 
+        }
+
+        // 4. LIMPIEZA DE LOS MUEBLES (HIJOS)
+        $set->furnitures->each(function ($furniture) {
+
+            // A. Limpiar la tabla intermedia (Pivot)
+            // Solo dejamos 'quantity', ocultamos los IDs redundantes
+            if ($furniture->pivot) {
+                $furniture->pivot->makeHidden(['set_id', 'furniture_id', 'created_at', 'updated_at']);
+            }
+
+            // B. Ocultar datos técnicos del mueble que no son relevantes para el Set
+            $furniture->makeHidden([
+                'created_at', 
+                'updated_at', 
+                'product_id', 
+                'furniture_type_id',
+                'profit_per',
+                'paint_per',
+                'labor_fab_per'
+            ]);
         });
 
         return response()->json($set);
@@ -83,7 +172,7 @@ class SetController extends Controller
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:255|unique:products',
             'description' => 'required|string|max:500',
-            'setType_id' => 'required|integer|exists:furniture_types,id',
+            'setType_id' => 'required|integer|exists:set_types,id',
             'furnitures' => 'required|array',
             'furnitures.*.id' => 'integer|exists:furnitures,id',
             'furnitures.*.quantity' => 'required|numeric|min:0',
@@ -92,9 +181,8 @@ class SetController extends Controller
             'labor_fab_per' => 'required|numeric|min:0',
             'sell' => 'required|boolean',
             'discount' => 'required|numeric|min:0|max:100',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp,gif|max:2048',
-            'colors' => 'nullable|array',
-            'colors.*' => 'string|regex:/^#([A-Fa-f0-9]{6})$/'
+            'images' => 'nullable|array',
+            'images.*' => 'image|mimes:jpeg,png,jpg,webp,gif|max:2048',
         ]);
 
         //enviar error si es necesario
@@ -131,20 +219,18 @@ class SetController extends Controller
             }
 
             // Procesar muebles
-            $furnituresData = [];
-            foreach ($request->furnitures as $furniture) {
-                $furnituresData[$furniture['id']] = ['quantity' => $furniture['quantity']];
-            }
-            $set->furnitures()->sync($furnituresData);
-
-            // Procesar colores
-            if ($request->has('colors')) {
-                $colorIds = app(ColorController::class)->getOrCreateColors($request->colors);
-                $product->colors()->sync($colorIds);
+            if ($request->has('furnitures')) {
+                $furnituresData = collect($request->furnitures)->mapWithKeys(function ($furniture) {
+                    return [$furniture['id'] => ['quantity' => $furniture['quantity']]];
+                })->toArray();
+                
+                $set->furnitures()->sync($furnituresData);
             }
 
             // Confirmar la transacción
             DB::commit();
+
+            $set->load(['product.images', 'furnitures']);
 
             return response()->json($set, 201);
 
@@ -161,21 +247,23 @@ class SetController extends Controller
         }
     }
 
-    //actualizar juego
-    public function update(Request $request, $id){
+    public function update(Request $request, $id)
+    {
         $set = Set::find($id);
 
-        if(!$set){
-            return response()->json(['message'=>'Juego no encontrado'], 404);
+        if (!$set) {
+            return response()->json(['message' => 'Juego no encontrado'], 404);
         }
 
         $product = $set->product;
 
+        // 1. VALIDACIÓN
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
-            'code' => 'sometimes|required|string|max:255|unique:products',
+            // Importante: Ignorar el ID actual para la validación de unique
+            'code' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('products', 'code')->ignore($product->id)],
             'description' => 'sometimes|required|string|max:500',
-            'setType_id' => 'sometimes|required|integer|exists:set_types,id',
+            'setType_id' => 'sometimes|required|integer|exists:set_types,id', // Ojo con el nombre de la tabla
             'furnitures' => 'sometimes|required|array',
             'furnitures.*.id' => 'required|integer|exists:furnitures,id',
             'furnitures.*.quantity' => 'required|numeric|min:0',
@@ -184,10 +272,11 @@ class SetController extends Controller
             'labor_fab_per' => 'sometimes|required|numeric|min:0',
             'sell' => 'sometimes|required|boolean',
             'discount' => 'sometimes|required|numeric|min:0|max:100',
+            // Imágenes (Lógica Nueva)
             'images' => 'nullable|array',
             'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
-            'colors' => 'nullable|array',
-            'colors.*' => 'string|regex:/^#([A-Fa-f0-9]{6})$/'
+            'kept_images' => 'nullable|array',
+            'kept_images.*' => 'integer',
         ]);
 
         if ($validator->fails()) {
@@ -199,72 +288,68 @@ class SetController extends Controller
         DB::beginTransaction();
 
         try {
-            if($request->has('name')){
-                $product->name = $request->name;
+            // 2. ACTUALIZACIÓN DE DATOS BÁSICOS
+            $product->fill($request->only([
+                'name', 'code', 'description', 'sell', 'discount'
+            ]));
+
+            // Mapeo manual de setType_id (Request) a set_types_id (DB)
+            if ($request->has('setType_id')) {
+                $set->set_types_id = $request->setType_id;
             }
 
-            if($request->has('code')){
-                $product->code = $request->code;
+            $set->fill($request->only([
+                'profit_per', 'paint_per', 'labor_fab_per'
+            ]));
+
+            // 3. GESTIÓN DE IMÁGENES (KEPT IMAGES LOGIC)
+            
+            // A. Borrar imágenes que NO están en kept_images
+            if ($request->has('kept_images')) {
+                $keptIds = $request->input('kept_images');
+                if (!is_array($keptIds)) $keptIds = [];
+
+                // Buscamos las imágenes del producto que NO están en la lista de IDs a mantener
+                $imagesToDelete = $product->images()->whereNotIn('id', $keptIds)->get();
+
+                foreach ($imagesToDelete as $img) {
+                    // Borrar archivo físico
+                    if (Storage::disk('public')->exists($img->url)) {
+                        Storage::disk('public')->delete($img->url);
+                    }
+                    // Borrar registro
+                    $img->delete();
+                }
             }
 
-            if($request->has('description')){
-                $product->description = $request->description;
-            }
-
-            if($request->has('sell')){
-                $product->sell = $request->sell;
-            }
-
-            if($request->has('discount')){
-                $product->discount = $request->discount;
-            }
-
-            // Procesar y almacenar nuevas imágenes
+            // B. Subir nuevas imágenes
             if ($request->hasFile('images')) {
-                // Eliminar las imágenes anteriores relacionadas con este producto (si es necesario)
-                $product->images()->delete(); // Elimina todas las imágenes actuales
-
                 $files = $request->file('images');
                 app(ProductImageController::class)->uploadImages($product->id, $files);
             }
 
-            if($request->has('setType_id')){
-                $set->setType_id = $request->setType_id;
-            }
-
-            if($request->has('profit_per')){
-                $set->profit_per = $request->profit_per;
-            }
-
-            if($request->has('paint_per')){
-                $set->paint_per = $request->paint_per;
-            }
-
-            if($request->has('labor_fab_per')){
-                $set->labor_fab_per = $request->labor_fab_per;
-            }
-
-            // Sincronizar muebles con cantidades
+            // 4. SINCRONIZACIÓN DE MUEBLES (COMPONENTES)
             if ($request->has('furnitures')) {
                 $furnituresData = collect($request->furnitures)->mapWithKeys(function ($furniture) {
                     return [$furniture['id'] => ['quantity' => $furniture['quantity']]];
                 })->toArray();
+                
                 $set->furnitures()->sync($furnituresData);
             }
 
-            // Procesar colores
-            if ($request->has('colors')) {
-                $colorIds = app(ColorController::class)->getOrCreateColors($request->colors);
-                $product->colors()->sync($colorIds);
-            }
-
+            // Guardamos cambios
             $product->save();
             $set->save();
+
             DB::commit();
+
+            // 5. RESPUESTA ACTUALIZADA
+            // Cargamos relaciones para que el frontend actualice la vista inmediatamente
+            $set->load(['product.images', 'furnitures', 'setType']);
+
         } catch (\Exception $e) {
             DB::rollback();
 
-            // Devolver el error
             return response()->json([
                 'message' => 'Error al actualizar el juego.',
                 'error' => $e->getMessage(),

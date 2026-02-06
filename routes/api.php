@@ -95,6 +95,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/materialType/{id}', [App\Http\Controllers\MaterialTypeController::class, 'destroy']); //Eliminar un tipo de material
 
     //Rutas para el CRUD de muebles
+    Route::get('/furnitures/noPage/all', [App\Http\Controllers\FurnitureController::class, 'listAll']); //Obtener todos los muebles sin paginación
     Route::post('/furniture', [App\Http\Controllers\FurnitureController::class, 'store']); //Crear un mueble
     Route::post('/furniture/{id}', [App\Http\Controllers\FurnitureController::class, 'update']); //Actualizar un mueble
     Route::delete('/furniture/{id}', [App\Http\Controllers\FurnitureController::class, 'destroy']); //Eliminar un mueble
@@ -114,6 +115,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     //Rutas para el CRUD de juegos
     Route::post('/set', [App\Http\Controllers\SetController::class, 'store']); //Crear un juego
+    Route::get('/set/cod/{cod}', [App\Http\Controllers\SetController::class, 'showCod']); // Obtener un juego específico por Cod
     Route::post('/set/{id}', [App\Http\Controllers\SetController::class, 'update']); //Actualizar un juego
     Route::delete('/set/{id}', [App\Http\Controllers\SetController::class, 'destroy']); //Eliminar un juego
 

@@ -58,6 +58,90 @@ class FurnitureController extends Controller
         return response()->json($furnitures);
     }
 
+    // Obtener todos los muebles a la venta sin paginación
+    public function listAll()
+    {
+        // 1. CONSULTA OPTIMIZADA
+        $furnitures = Furniture::whereHas('product', function ($query) {
+                // FILTRO: Solo productos marcados para la venta (sell = 1/true)
+                $query->where('sell', true); 
+            })
+            ->with([
+                'furnitureType', 
+                'materials.materialTypes',
+                'labors',
+                'product.stocks'
+            ])->get();
+
+        // 2. TRANSFORMACIÓN Y COSTOS
+        $furnitures->map(function ($furniture) {
+            
+            // --- A. CÁLCULO DE COSTOS BASE ---
+            $costSupplies = 0;    // Para tipos "Insumo"
+            $costUpholstery = 0;  // Para tipos "Tapicería"
+
+            foreach ($furniture->materials as $material) {
+                // Calculamos el costo de este material en este mueble
+                $subtotal = $material->price * $material->pivot->quantity;
+
+                // CLASIFICACIÓN EXACTA POR NOMBRE
+                // Verificamos si la colección de tipos contiene el nombre específico
+                if ($material->materialTypes->contains('name', 'Tapicería')) {
+                    $costUpholstery += $subtotal;
+                } 
+                elseif ($material->materialTypes->contains('name', 'Insumo')) {
+                    $costSupplies += $subtotal;
+                }
+                // Si tienes otros tipos (ej: "Madera"), puedes agregar más elseif o sumarlos a supplies por defecto.
+            }
+
+            // 2. Costo de Mano de Obra
+            $costLabor = $furniture->labors->reduce(function ($carry, $labor) {
+                return $carry + ($labor->daily_pay * $labor->pivot->days);
+            }, 0);
+
+            // --- B. ASIGNACIÓN AL OBJETO JSON ---
+            $furniture->costs = [
+                'supplies'    => round($costSupplies, 2),   // Total Insumos
+                'upholstery'  => round($costUpholstery, 2), // Total Tapicería
+                'labor'       => round($costLabor, 2),      // Total Mano de Obra
+            ];
+
+            // --- C. LIMPIEZA VISUAL ---
+            $product = $furniture->product;
+
+            if ($product) {
+                $product->makeHidden(['sell', 'description', 'discount', 'created_at', 'updated_at']);
+                
+                // Limpieza de stock (si la vista ya trae hex y name, ocultamos lo técnico)
+                if ($product->stocks) {
+                    $product->stocks->makeHidden(['productID', 'productCode']);
+                }
+            }
+
+            if ($furniture->furnitureType) {
+                $furniture->furnitureType->makeHidden(['created_at', 'updated_at']);
+            }
+
+            // Ocultamos la "receta" interna para no enviar un JSON gigante
+            $furniture->makeHidden([
+                'materials', 
+                'labors', 
+                'product_id', 
+                'furniture_type_id', 
+                'created_at', 
+                'updated_at',
+                'profit_per', 
+                'paint_per', 
+                'labor_fab_per' 
+            ]);
+
+            return $furniture;
+        });
+
+        return response()->json($furnitures);
+    }
+
     //Obtener mueble por ID
     public function show($id)
     {
