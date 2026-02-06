@@ -33,6 +33,10 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'furnitures.create', 'name' => 'Crear Muebles'],
                 ['slug' => 'furnitures.edit',   'name' => 'Editar Muebles'],
                 ['slug' => 'furnitures.delete', 'name' => 'Eliminar Muebles'],
+                ['slug' => 'furnitures.parameters.view', 'name' => 'Ver Parámetros de Muebles'],
+                ['slug' => 'furnitures.parameters.create', 'name' => 'Crear Parámetros de Muebles'],
+                ['slug' => 'furnitures.parameters.edit', 'name' => 'Editar Parámetros de Muebles'],
+                ['slug' => 'furnitures.parameters.delete', 'name' => 'Eliminar Parámetros de Muebles'],
             ],
 
             // 4. MATERIALES (Insumos/Tapicería)
@@ -41,6 +45,10 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'materials.create', 'name' => 'Crear Materiales'],
                 ['slug' => 'materials.edit',   'name' => 'Editar Materiales'],
                 ['slug' => 'materials.delete', 'name' => 'Eliminar Materiales'],
+                ['slug' => 'materials.parameters.view', 'name' => 'Ver Parámetros de Materiales'],
+                ['slug' => 'materials.parameters.create', 'name' => 'Crear Parámetros de Materiales'],
+                ['slug' => 'materials.parameters.edit', 'name' => 'Editar Parámetros de Materiales'],
+                ['slug' => 'materials.parameters.delete', 'name' => 'Eliminar Parámetros de Materiales'],
             ],
 
             // 5. JUEGOS DE MUEBLES
@@ -49,6 +57,10 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'sets.create', 'name' => 'Crear Juegos'],
                 ['slug' => 'sets.edit',   'name' => 'Editar Juegos'],
                 ['slug' => 'sets.delete', 'name' => 'Eliminar Juegos'],
+                ['slug' => 'sets.parameters.view', 'name' => 'Ver Parámetros de Juegos'],
+                ['slug' => 'sets.parameters.create', 'name' => 'Crear Parámetros de Juegos'],
+                ['slug' => 'sets.parameters.edit', 'name' => 'Editar Parámetros de Juegos'],
+                ['slug' => 'sets.parameters.delete', 'name' => 'Eliminar Parámetros de Juegos'],
             ],
 
             // 6. USUARIOS (Gestión de Staff y Clientes)
