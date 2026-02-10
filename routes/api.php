@@ -149,4 +149,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/receipt/{id}', [App\Http\Controllers\ReceiptController::class, 'show']); // Obtener una factura específica
     Route::post('/receipt', [App\Http\Controllers\ReceiptController::class, 'store']); // Crear factura
     Route::delete('/receipt/{id}', [App\Http\Controllers\ReceiptController::class, 'destroy']); // Eliminar una factura
+
+    // Rutas para el CRUD de compras
+    Route::get('/purchases', [App\Http\Controllers\PurchaseController::class, 'index']); // Obtener todas las compras con paginacion
+    Route::get('/purchase/{id}', [App\Http\Controllers\PurchaseController::class, 'show']); // Obtener una compra específica
+    Route::post('/purchase', [App\Http\Controllers\PurchaseController::class, 'store']); // Crear una compra
+    Route::post('/purchase/{id}', [App\Http\Controllers\PurchaseController::class, 'update']); // Actualizar una compra
+    Route::delete('/purchase/{id}', [App\Http\Controllers\PurchaseController::class, 'destroy']); // Eliminar una compra
+
+    // Rutas para el CRUD de proveedores
+    Route::get('/suppliers', [App\Http\Controllers\SupplierController::class, 'index']); // Obtener todos los proveedores con paginacion
+    Route::get('/supplier/{id}', [App\Http\Controllers\SupplierController::class, 'show']); // Obtener un proveedor específico
+    Route::post('/supplier', [App\Http\Controllers\SupplierController::class, 'store']); // Crear un proveedor
+    Route::post('/supplier/{id}', [App\Http\Controllers\SupplierController::class, 'update']); // Actualizar un proveedor
+    Route::delete('/supplier/{id}', [App\Http\Controllers\SupplierController::class, 'destroy']); // Eliminar un proveedor
 });

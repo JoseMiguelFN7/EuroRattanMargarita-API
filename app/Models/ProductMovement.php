@@ -10,7 +10,9 @@ class ProductMovement extends Model
         'product_id',
         'quantity',
         'color_id',
-        'movement_date'
+        'movement_date',
+        'movementable_id',
+        'movementable_type'
     ];
 
     public function product(){
@@ -19,5 +21,10 @@ class ProductMovement extends Model
 
     public function color(){
         return $this->belongsTo(Color::class);
+    }
+
+    public function movementable()
+    {
+        return $this->morphTo();
     }
 }
