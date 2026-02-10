@@ -80,6 +80,22 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'permissions.view',  'name' => 'Ver Permisos'],
                 ['slug' => 'permissions.asign', 'name' => 'Asignar Permisos'],
             ],
+
+            // 8. COMPRAS
+            'Compras' => [
+                ['slug' => 'purchases.view',   'name' => 'Ver Compras'],
+                ['slug' => 'purchases.create', 'name' => 'Crear Compras'],
+                ['slug' => 'purchases.edit',   'name' => 'Editar Compras'],
+                ['slug' => 'purchases.delete', 'name' => 'Eliminar Compras'],
+            ],
+
+            // 9 Proveedores
+            'Proveedores' => [
+                ['slug' => 'suppliers.view',   'name' => 'Ver Proveedores'],
+                ['slug' => 'suppliers.create', 'name' => 'Crear Proveedores'],
+                ['slug' => 'suppliers.edit',   'name' => 'Editar Proveedores'],
+                ['slug' => 'suppliers.delete', 'name' => 'Eliminar Proveedores'],
+            ],
         ];
 
         // Lógica de Creación / Actualización
