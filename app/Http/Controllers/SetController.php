@@ -63,6 +63,61 @@ class SetController extends Controller
         return response()->json($sets);
     }
 
+    public function indexSell(Request $request)
+    {
+        $perPage = $request->input('per_page', 10);
+
+        // 1. CARGA DE RELACIONES
+        // Necesitamos 'materials.materialTypes' para distinguir Insumo vs Tapicería
+        $sets = Set::with([
+            'setType', 
+            'product.images',
+            'furnitures.materials.materialTypes', 
+            'furnitures.labors',
+            'furnitures.product.stocks'
+        ])->whereHas('product', function ($query) {
+            $query->where('sell', true);
+        })
+        ->paginate($perPage);
+
+        // 2. TRANSFORMACIÓN
+        $sets->through(function ($set) {
+            
+            // --- A. LLAMADO AL MODELO PARA CÁLCULOS ---
+            $precios = $set->calcularPrecios();
+            
+            $set->pvp_natural = $precios['pvp_natural'];
+            $set->pvp_color = $precios['pvp_color'];
+
+            // B. DISPONIBILIDAD DE COLORES
+            $set->available_colors = $set->calcularColoresDisponibles();
+
+            // --- C. LIMPIEZA VISUAL ---
+            $product = $set->product;
+            if ($product) {
+                // Imagen para la tabla
+                if ($product->images->isNotEmpty()) {
+                    $product->images = $product->images->map(function ($image) {
+                        return asset('storage/' . $image->url);
+                    });
+                } else {
+                    $product->images = null;
+                }
+                // Ocultamos datos pesados del producto
+                $product->makeHidden(['created_at', 'updated_at', 'description', 'sell', 'stocks']);
+            }
+
+            if ($set->setType) $set->setType->makeHidden(['created_at', 'updated_at']);
+
+            // Ocultamos la lógica interna del Set
+            $set->makeHidden(['furnitures', 'product_id', 'set_types_id', 'created_at', 'updated_at']);
+
+            return $set;
+        });
+
+        return response()->json($sets);
+    }
+
     //Obtener juego por ID
     public function show($id)
     {
@@ -83,13 +138,10 @@ class SetController extends Controller
 
     public function showCod($code)
     {
-        // 1. CARGA DE RELACIONES
-        // Agregamos 'furnitures.product' para saber el nombre de las sillas/mesas que componen el juego
-        // Agregamos 'furnitures.furnitureType' por si necesitas mostrar la categoría
         $set = Set::with([
                 'setType', 
                 'product.images', 
-                'furnitures', // Foto del componente
+                'furnitures',
             ])
             ->whereHas('product', function ($query) use ($code) {
                 $query->where('code', $code);

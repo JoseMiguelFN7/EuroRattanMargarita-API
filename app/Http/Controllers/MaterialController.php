@@ -71,6 +71,67 @@ class MaterialController extends Controller
         return response()->json($materials);
     }
 
+    public function indexSell(Request $request)
+    {
+        $perPage = $request->input('per_page', 8);
+
+        // 1. CONSULTA FILTRADA Y CARGA ANSIOSA
+        $materials = Material::query()
+            ->whereHas('product', function ($query) {
+                $query->where('sell', true);
+            })
+            // B. RELACIONES
+            ->with([
+                'materialTypes', 
+                'unit', 
+                'product.images', 
+                'product.stocks'
+            ])
+            ->paginate($perPage);
+
+        // 2. LIMPIEZA DE DATOS (Transformación)
+        // Usamos 'through' porque es un Paginator, no una Collection
+        $materials->through(function ($material) {
+            
+            // --- Nivel Material ---
+            $material->makeHidden(['created_at', 'updated_at', 'product_id', 'unit_id']);
+
+            // --- Nivel Producto ---
+            if ($material->product) {
+                $prod = $material->product;
+
+                // A. Imágenes: URL Absoluta
+                if ($prod->images) {
+                    $prod->images->each(function ($image) {
+                        $image->url = asset('storage/' . $image->url);
+                        $image->makeHidden(['created_at', 'updated_at', 'product_id']);
+                    });
+                }
+                
+                // B. Stock: Limpieza de vista
+                if ($prod->stocks) {
+                    $prod->stocks->makeHidden(['productID', 'productCode']);
+                }
+
+                // C. Ocultar datos del padre
+                $prod->makeHidden(['created_at', 'updated_at', 'description']);
+            }
+
+            // --- Nivel Tipos y Unidades ---
+            if ($material->materialTypes) {
+                $material->materialTypes->makeHidden(['pivot', 'created_at', 'updated_at']);
+            }
+            
+            if ($material->unit) {
+                $material->unit->makeHidden(['created_at', 'updated_at', 'id']);
+            }
+
+            return $material;
+        });
+
+        return response()->json($materials);
+    }
+
     //Obtener material por ID
     public function show($id)
     {

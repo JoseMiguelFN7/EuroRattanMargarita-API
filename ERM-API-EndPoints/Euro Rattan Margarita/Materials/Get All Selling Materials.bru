@@ -1,0 +1,16 @@
+meta {
+  name: Get All Selling Materials
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{host}}materials/sell?page=1&per_page=12
+  body: none
+  auth: none
+}
+
+params:query {
+  page: 1
+  per_page: 12
+}

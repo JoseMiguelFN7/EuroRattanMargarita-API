@@ -58,6 +58,53 @@ class FurnitureController extends Controller
         return response()->json($furnitures);
     }
 
+    public function indexSell(Request $request)
+    {
+        $perPage = $request->input('per_page', 8);
+
+        $furnitures = Furniture::with([
+            'furnitureType', 
+            'product.images', 
+            'product.stocks',
+            'materials.materialTypes',
+            'labors'
+        ])->whereHas('product', function ($query) {
+            $query->where('sell', true);
+        })
+        ->paginate($perPage);
+
+        // 2. TRANSFORMACIÓN
+        $furnitures = $furnitures->through(function ($furniture) {
+            
+            $product = $furniture->product;
+
+            $product->images->each(function ($image) {
+                // 1. Generamos la URL completa
+                $image->url = asset('storage/' . $image->url);
+                // 2. Limpiamos la basura de cada objeto imagen
+                $image->makeHidden(['created_at', 'updated_at', 'product_id']);
+            });
+
+            // --- Precios ---
+            $precios = $furniture->calcularPrecios();
+            $furniture->pvp_natural = $precios['pvp_natural'];
+            $furniture->pvp_color = $precios['pvp_color'];
+
+            // --- Stock ---
+            $product->stocks->makeHidden(['productID', 'productCode']);
+
+
+            $product->makeHidden(['created_at', 'updated_at']);
+
+            $furniture->furnitureType->makeHidden(['created_at', 'updated_at']);
+            $furniture->makeHidden(['materials', 'labors', 'product_id', 'furniture_type_id', 'created_at', 'updated_at']);
+
+            return $furniture;
+        });
+
+        return response()->json($furnitures);
+    }
+
     // Obtener todos los muebles a la venta sin paginación
     public function listAll()
     {
@@ -373,25 +420,21 @@ class FurnitureController extends Controller
             'code' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('products', 'code')->ignore($product->id)],
             'description' => 'sometimes|required|string|max:500',
             'furnitureType_id' => 'sometimes|required|integer|exists:furniture_types,id',
-            // Arrays complejos (Pivotes)
             'materials' => 'sometimes|required|array',
             'materials.*.id' => 'required|integer|exists:materials,id',
             'materials.*.quantity' => 'required|numeric|min:0',
             'labors' => 'sometimes|required|array',
             'labors.*.id' => 'required|integer|exists:labors,id',
             'labors.*.days' => 'required|numeric|min:0',
-            // Costos
             'profit_per' => 'sometimes|required|numeric|min:0',
             'paint_per' => 'sometimes|required|numeric|min:0',
             'labor_fab_per' => 'sometimes|required|numeric|min:0',
             'sell' => 'sometimes|required|boolean',
             'discount' => 'sometimes|required|numeric|min:0|max:100',
-            // Imágenes (Lógica Nueva)
             'images' => 'nullable|array',
             'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
             'kept_images' => 'nullable|array',
             'kept_images.*' => 'integer',
-            // Colores
             'colors' => 'required|array',
             'colors.*' => 'integer|exists:colors,id'
         ]);

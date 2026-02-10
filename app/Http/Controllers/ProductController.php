@@ -43,34 +43,68 @@ class ProductController extends Controller
             ], 400);
         }
 
-        // Obtener productos con 'sell = true'
-        $products = Product::with(['material', 'furniture', 'set', 'images']) // Cargar relaciones necesarias
-            ->where('sell', true) // Filtrar por 'sell = true'
-            ->inRandomOrder() // Seleccionar en orden aleatorio
-            ->take($quantity) // Limitar la cantidad
-            ->get()
-            ->map(function ($product) {
-                // Agregar la URL completa de la imagen al producto
-                $product->images->each(function ($image) {
-                    // 1. Generamos la URL completa
-                    $image->url = asset('storage/' . $image->url);
-                    // 2. Limpiamos la basura de cada objeto imagen
-                    $image->makeHidden(['created_at', 'updated_at', 'product_id']);
-                });
+        // 1. CARGA DE RELACIONES PROFUNDA
+        // Cargamos todo lo necesario para que las fórmulas de precio (calcularPrecios / calculatePrices)
+        // funcionen sin hacer consultas extra a la base de datos.
+        $products = Product::with([
+            'images',
+            'material',                            // Precio directo
+            'furniture.materials.materialTypes',   // Fórmula Mueble
+            'furniture.labors',                    // Fórmula Mueble
+            'set.furnitures.materials.materialTypes', // Fórmula Set
+            'set.furnitures.labors'                // Fórmula Set
+        ])
+        ->where('sell', true)
+        ->inRandomOrder()
+        ->take($quantity)
+        ->get();
 
-                // Determinar cuál relación tiene información para obtener el precio
-                if ($product->material) {
-                    $product->price = $product->material->price;
-                } elseif ($product->furniture) {
-                    $product->price = $product->furniture->price; // Asegúrate de que el campo 'price' esté en 'furniture'
-                } elseif ($product->set) {
-                    $product->price = $product->set->price; // Asegúrate de que el campo 'price' esté en 'set'
-                } else {
-                    $product->price = null; // Si no hay precio en ninguna relación
-                }
+        // 2. TRANSFORMACIÓN Y UNIFICACIÓN
+        $products->transform(function ($product) {
+            
+            // --- A. LÓGICA DE PRECIOS EN CAMPO 'price' ---
+            $calculatedPrice = 0;
 
-                return $product;
+            if ($product->material) {
+                // Caso Material: El precio es directo
+                $calculatedPrice = $product->material->price;
+            } 
+            elseif ($product->furniture) {
+                // Caso Mueble: Calculamos PVP Natural
+                $prices = $product->furniture->calcularPrecios();
+                $calculatedPrice = $prices['pvp_natural'];
+            } 
+            elseif ($product->set) {
+                // Caso Juego: Calculamos PVP Natural
+                $prices = $product->set->calcularPrecios();
+                $calculatedPrice = $prices['pvp_natural'];
+            }
+
+            // Asignamos el resultado al campo estandar 'price'
+            $product->price = $calculatedPrice;
+
+
+            // --- B. LIMPIEZA DE IMÁGENES ---
+            $product->images->each(function ($image) {
+                $image->url = asset('storage/' . $image->url);
+                $image->makeHidden(['created_at', 'updated_at', 'product_id']);
             });
+
+
+            // --- C. LIMPIEZA FINAL ---
+            // Ocultamos las relaciones complejas para dejar el objeto plano
+            $product->makeHidden([
+                'created_at', 
+                'updated_at', 
+                'sell', 
+                'discount',
+                'material', 
+                'furniture', 
+                'set'
+            ]);
+
+            return $product;
+        });
 
         return response()->json($products);
     }
@@ -83,9 +117,13 @@ class ProductController extends Controller
             'material.materialTypes', 
             'material.unit', 
             'furniture.furnitureType', 
-            'furniture.materials', 
+            'furniture.materials.materialTypes', 
             'furniture.labors', 
-            'set', 
+            'set.setType',
+            'set.furnitures.product.images',
+            'set.furnitures.product.stocks',
+            'set.furnitures.materials.materialTypes',
+            'set.furnitures.labors',
             'images',
             'stocks'
         ])->where('code', $cod)->first();
@@ -135,18 +173,74 @@ class ProductController extends Controller
         
         // --- CASO MUEBLE ---
         elseif ($product->furniture) {
+            $furniture = $product->furniture;
+
+            // A. Precios (Tu lógica existente)
+            $precios = $furniture->calcularPrecios();
+            $furniture->pvp_natural = $precios['pvp_natural'];
+            $furniture->pvp_color = $precios['pvp_color'];
+
+            // B. Limpieza GENERAL del Mueble
+            // Ocultamos 'product' para evitar el bucle infinito y datos repetidos
+            $furniture->makeHidden(['product', 'materials', 'labors', 'created_at', 'updated_at', 'product_id']);
+
+            if ($furniture->furnitureType) {
+                $furniture->furnitureType->makeHidden(['created_at', 'updated_at']);
+            }
+
+            // Ocultamos relaciones hermanas vacías
             $product->makeHidden(['material', 'set']);
+        }
 
-            // Cálculos de precio (mantenemos tu lógica intacta)
-            $precios = $product->furniture->calcularPrecios();
-            $product->furniture->pvp_natural = $precios['pvp_natural'];
-            $product->furniture->pvp_color = $precios['pvp_color'];
+        // --- CASO SET (JUEGO) ---
+        elseif ($product->set) {
+            $product->makeHidden(['material', 'furniture']);
+            $set = $product->set;
 
-            $product->furniture->makeHidden(['created_at', 'updated_at', 'product_id']);
-            
-            // Limpiar sub-relaciones manteniendo estructura
-            if($product->furniture->materials) $product->furniture->materials->makeHidden(['pivot', 'created_at', 'updated_at']);
-            if($product->furniture->labors) $product->furniture->labors->makeHidden(['pivot', 'created_at', 'updated_at']);
+            // A. Cálculos usando tus funciones del Modelo
+            $precios = $set->calcularPrecios();
+            $set->pvp_natural = $precios['pvp_natural'];
+            $set->pvp_color = $precios['pvp_color'];
+
+            $set->available_colors = $set->calcularColoresDisponibles();
+
+            // B. Transformar Componentes (Muebles del juego)
+            // Creamos un array limpio 'components' con solo lo que pide el front
+            $set->components = $set->furnitures->map(function ($furniture) {
+                $prod = $furniture->product;
+                
+                // Gestionar imagen del componente
+                $imgUrl = null;
+                if ($prod && $prod->images->isNotEmpty()) {
+                    $imgUrl = asset('storage/' . $prod->images->first()->url);
+                }
+
+                return [
+                    'id'          => $furniture->id,
+                    'code'        => $prod ? $prod->code : 'N/A',
+                    'name'        => $prod ? $prod->name : 'Desconocido',
+                    'description' => $prod ? $prod->description : '',
+                    'quantity'    => $furniture->pivot->quantity,
+                    'image'       => $imgUrl
+                ];
+            });
+
+            // C. Limpieza del Set
+            if ($set->setType) {
+                $set->setType->makeHidden(['created_at', 'updated_at']);
+            }
+
+            // Ocultamos la relación original 'furnitures' (muy pesada) y dejamos solo 'components'
+            $set->makeHidden([
+                'furnitures', 
+                'product_id', 
+                'set_types_id', 
+                'created_at', 
+                'updated_at',
+                'profit_per', 
+                'paint_per', 
+                'labor_fab_per'
+            ]);
         }
 
         return response()->json($product);
