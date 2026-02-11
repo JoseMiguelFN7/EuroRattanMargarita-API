@@ -39,4 +39,20 @@ class Purchase extends Model
     {
         return $this->morphMany(ProductMovement::class, 'movementable');
     }
+
+    public function getTotalAttribute()
+    {
+        // Verificación de seguridad: 
+        // Si no has cargado los productos con 'with()', evitamos que intente calcular
+        // para no generar errores o consultas N+1 inesperadas.
+        if (!$this->relationLoaded('products')) {
+            return 0; 
+        }
+
+        return $this->products->sum(function ($product) {
+            // Tu fórmula: (Costo - Descuento) * Cantidad
+            $netCost = $product->pivot->cost - $product->pivot->discount;
+            return $netCost * $product->pivot->quantity;
+        });
+    }
 }

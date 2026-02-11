@@ -1,0 +1,15 @@
+meta {
+  name: Get Purchase
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{host}}purchase/1
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

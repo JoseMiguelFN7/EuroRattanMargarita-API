@@ -17,10 +17,18 @@ class PurchaseController extends Controller
     {
         $perPage = $request->input('per_page', 10);
         
-        // Cargamos el proveedor y los productos (con su pivote)
-        $purchases = Purchase::with(['supplier', 'products'])
+        $purchases = Purchase::with(['supplier', 'products']) // Carga necesaria para el cálculo
                              ->orderBy('date', 'desc')
                              ->paginate($perPage);
+
+        $purchases->getCollection()->each(function ($purchase) {
+            $purchase->append('total');
+            $purchase->makeHidden('products'); 
+
+            $purchase->supplier->makeHidden(['created_at', 'updated_at']);
+        });
+
+        $purchases->makeHidden(['created_at', 'updated_at']);
 
         return response()->json($purchases);
     }
@@ -34,6 +42,7 @@ class PurchaseController extends Controller
             'supplier_id' => 'required|exists:suppliers,id',
             'code'        => 'required|string|unique:purchases,code',
             'date'        => 'required|date',
+            'notes'       => 'nullable|string',
             'products'    => 'required|array|min:1',
             'products.*.id'       => 'required|exists:products,id',
             'products.*.quantity' => 'required|numeric|min:0.01',

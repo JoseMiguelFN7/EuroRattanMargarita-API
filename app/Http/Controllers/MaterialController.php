@@ -132,6 +132,33 @@ class MaterialController extends Controller
         return response()->json($materials);
     }
 
+    //Obtener todos los materiales para ingresar una compra (Solo id, name y code)
+    public function listMaterialsPurchase()
+    {
+        $products = Product::has('material') // Solo productos que sean materiales
+            ->select('id', 'name', 'code')   // Datos base del producto
+            ->with([
+                'colors:id,name,hex', 
+                'material:id,product_id,unit_id', 
+                'material.unit:id,name' // Solo traemos el nombre (Ej: 'kg', 'm')
+            ])
+            ->orderBy('name', 'asc')
+            ->get()
+            // 3. Transformación (Map)
+            // Esto se ejecuta en memoria para limpiar el JSON final
+            ->map(function ($product) {
+                return [
+                    'id'     => $product->id,
+                    'code'   => $product->code,
+                    'name'   => $product->name,
+                    'unit'   => $product->material->unit->name ?? '', 
+                    'colors' => $product->colors
+                ];
+            });
+
+        return response()->json($products);
+    }
+
     //Obtener material por ID
     public function show($id)
     {
