@@ -140,7 +140,7 @@ class MaterialController extends Controller
             ->with([
                 'colors:id,name,hex', 
                 'material:id,product_id,unit_id', 
-                'material.unit:id,name' // Solo traemos el nombre (Ej: 'kg', 'm')
+                'material.unit:id,name'
             ])
             ->orderBy('name', 'asc')
             ->get()

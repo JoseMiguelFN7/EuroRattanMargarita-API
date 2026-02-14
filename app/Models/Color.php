@@ -8,7 +8,12 @@ class Color extends Model
 {
     protected $fillable = [
         'name',
-        'hex'
+        'hex',
+        'is_natural'
+    ];
+
+    protected $casts = [
+        'is_natural' => 'boolean',
     ];
 
     public function products(){

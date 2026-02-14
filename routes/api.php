@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
+use Illuminate\Support\Facades\Http;
 
 // Rutas para el CRUD de usuarios
 Route::post('/user/login',[App\Http\Controllers\UserController::class, 'login']); //Login
@@ -164,4 +165,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/supplier', [App\Http\Controllers\SupplierController::class, 'store']); // Crear un proveedor
     Route::post('/supplier/{id}', [App\Http\Controllers\SupplierController::class, 'update']); // Actualizar un proveedor
     Route::delete('/supplier/{id}', [App\Http\Controllers\SupplierController::class, 'destroy']); // Eliminar un proveedor
+
+    //Ruta para solicitar receta a IA
+    Route::post('/recipes/ai-suggest', [App\Http\Controllers\RecipeAIController::class, 'suggest']);
 });

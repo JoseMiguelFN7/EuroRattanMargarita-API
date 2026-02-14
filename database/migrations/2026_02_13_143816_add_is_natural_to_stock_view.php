@@ -17,6 +17,7 @@ return new class extends Migration
                 p.code AS productCode,
                 c.hex AS color,
                 c.name AS color_name,
+                c.is_natural AS is_natural,
                 COALESCE(SUM(pm.quantity), 0) AS stock
             FROM products p
             LEFT JOIN products_colors pc ON pc.product_id = p.id
@@ -44,6 +45,7 @@ return new class extends Migration
                 p.id AS productID,
                 p.code AS productCode,
                 c.hex AS color,
+                c.name AS color_name,
                 COALESCE(SUM(pm.quantity), 0) AS stock
             FROM products p
             LEFT JOIN products_colors pc ON pc.product_id = p.id
@@ -52,10 +54,11 @@ return new class extends Migration
             GROUP BY 
                 p.id, 
                 p.code, 
-                c.hex
+                c.hex, 
+                c.name
             ORDER BY 
                 p.code, 
-                c.hex
+                c.name
         ");
     }
 };
