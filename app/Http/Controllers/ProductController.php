@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Product;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use App\Models\Color;
 
 class ProductController extends Controller
 {
@@ -358,5 +360,131 @@ class ProductController extends Controller
         }
 
         return response()->json($productStock);
+    }
+
+    public function validateCartItems(Request $request)
+    {
+        $request->validate([
+            'items' => 'required|array',
+            'items.*.productId' => 'required|exists:products,id',
+            'items.*.variantId' => 'nullable|integer', // Esto es el ID de la tabla colors
+            'items.*.quantity' => 'required|integer|min:1',
+        ]);
+
+        $response = [];
+
+        // ---------------------------------------------------------
+        // 1. MAPEO DE COLORES (LA SOLUCIÓN AL BUG)
+        // ---------------------------------------------------------
+        // Extraemos todos los IDs de variantes solicitados en el carrito
+        $variantIds = collect($request->items)->pluck('variantId')->filter()->unique();
+
+        // Consultamos la tabla 'colors' directamente.
+        // Obtenemos un array simple: [ ID_COLOR => IS_NATURAL (bool) ]
+        // Esto es independiente de si hay stock o no.
+        $colorsMap = Color::whereIn('id', $variantIds)->pluck('is_natural', 'id');
+
+        // ---------------------------------------------------------
+        // 2. Carga de Productos
+        // ---------------------------------------------------------
+        $productRelations = [
+            'images',
+            'stocks',         // Solo para materiales
+            'material',
+            'furniture.materials', 
+            'furniture.labors',
+            'set.furnitures.product.stocks', // Para calcular el cuello de botella del set
+            'set.furnitures.materials',
+            'set.furnitures.labors'
+        ];
+
+        foreach ($request->items as $item) {
+            $product = Product::with($productRelations)->find($item['productId']);
+            
+            if (!$product) continue;
+
+            $variantId = $item['variantId'];
+            
+            // ---------------------------------------------------------
+            // 3. DETERMINAR PROPIEDAD DEL PRECIO (SIN MIRAR STOCK)
+            // ---------------------------------------------------------
+            // Si hay variantId, buscamos en nuestro mapa maestro. 
+            // Si no existe variantId, asumimos que es Natural.
+            $isNatural = $variantId ? ($colorsMap[$variantId] ?? true) : true;
+
+            $price = 0;
+            $stockAvailable = 0;
+
+            // --- LÓGICA PARA JUEGOS (SETS) ---
+            if ($product->set) {
+                // Precios base del set
+                $precios = $product->set->calcularPrecios();
+                
+                // Aquí decidimos el precio solo basándonos en el COLOR, no en el stock
+                $price = (!$isNatural) ? ($precios['pvp_color'] ?? $precios['pvp_natural']) : $precios['pvp_natural'];
+
+                // Ahora calculamos stock (Cuello de Botella)
+                $coloresDisponibles = $product->set->calcularColoresDisponibles();
+                
+                if ($variantId) {
+                    // Buscamos si es posible fabricar este color específico
+                    $colorData = collect($coloresDisponibles)->firstWhere('id', $variantId);
+                    $stockAvailable = $colorData ? $colorData['stock'] : 0;
+                } else {
+                    $stockAvailable = 0; // Obligar a elegir color
+                }
+            } 
+            
+            // --- LÓGICA PARA MUEBLES ---
+            elseif ($product->furniture) {
+                $precios = $product->furniture->calcularPrecios();
+                
+                // Precio decidido por la definición del color
+                $price = (!$isNatural) ? ($precios['pvp_color'] ?? $precios['pvp_natural']) : $precios['pvp_natural'];
+
+                // Stock calculado vía cuello de botella (igual que el set, o similar)
+                // OJO: Si usas la misma lógica de "colores disponibles" para muebles individuales:
+                $coloresDisponibles = $product->furniture->calcularColoresDisponibles(); // Asumo que el mueble también tiene esto o similar
+                
+                // Si el mueble usa lógica simple de stocks (aunque dijiste que no tienen stock físico directo):
+                // Ajusta esto según cómo calculas disponibilidad de un mueble individual.
+                // Si usas la misma función que el Set:
+                 if ($variantId) {
+                    $colorData = collect($coloresDisponibles)->firstWhere('id', $variantId);
+                    $stockAvailable = $colorData ? $colorData['stock'] : 0;
+                } else {
+                    $stockAvailable = 0;
+                }
+            } 
+            
+            // --- LÓGICA PARA MATERIALES ---
+            elseif ($product->material) {
+                $price = $product->material->price; // Precio fijo usualmente
+
+                // Materiales SÍ suelen tener stock físico directo en la vista
+                if ($variantId) {
+                    $stockData = $product->stocks->where('colorID', $variantId)->first();
+                    $stockAvailable = $stockData ? $stockData->stock : 0;
+                } else {
+                    $stockAvailable = $product->stocks->sum('stock');
+                }
+            }
+
+            // --- Respuesta Final ---
+            $response[] = [
+                'id'              => $product->id,
+                'variant_id'      => $variantId,
+                'name'            => $product->name,
+                'image'           => $product->images->first() 
+                                     ? asset('storage/' . $product->images->first()->url) 
+                                     : null,
+                'price'           => (float) $price,
+                'stock_available' => (int) $stockAvailable,
+                'quantity'        => (int) $item['quantity'],
+                'insufficient_stock' => $item['quantity'] > $stockAvailable,
+            ];
+        }
+
+        return response()->json($response);
     }
 }

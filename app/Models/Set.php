@@ -98,6 +98,8 @@ class Set extends Model
             
             $maxSetsPossible = 999999; // Iniciamos alto (infinito)
             $colorHex = null;         // Aquí guardaremos el HEX de la columna 'color'
+            $colorID = null;          // Aquí guardaremos el ID de la columna 'colorID'
+            $isNatural = null;        // Aquí guardaremos el valor de 'is_natural'
 
             foreach ($this->furnitures as $furniture) {
                 $qtyRequired = $furniture->pivot->quantity; 
@@ -113,6 +115,8 @@ class Set extends Model
                 // Aprovechamos para capturar el HEX de la columna 'color'
                 if (!$colorHex && $stockData) {
                     $colorHex = $stockData->color; // <--- AQUÍ USAMOS TU COLUMNA 'color' (HEX)
+                    $colorID = $stockData->colorID; // <--- AQUÍ USAMOS TU COLUMNA 'colorID'
+                    $isNatural = $stockData->is_natural; // <--- AQUÍ USAMOS TU COLUMNA 'is_natural'
                 }
 
                 // CÁLCULO DEL LIMITANTE
@@ -131,9 +135,11 @@ class Set extends Model
             // Si es posible armar al menos 1 juego y obtuvimos el HEX correctamente
             if ($maxSetsPossible > 0 && $maxSetsPossible < 999999 && $colorHex) {
                 $availableColors[] = [
+                    'id'    => $colorID,
                     'name'  => $colorName,      // Columna 'color_name'
                     'hex'   => $colorHex,       // Columna 'color'
-                    'stock' => $maxSetsPossible
+                    'stock' => $maxSetsPossible,
+                    'is_natural' => $isNatural ?? null // Columna 'is_natural'
                 ];
             }
         }

@@ -6,6 +6,17 @@ meta {
 
 post {
   url: {{host}}recipes/ai-suggest
-  body: none
-  auth: none
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+      "description": "Una silla de rattan sencilla con un tejido tipo ajedrez en el respaldar",
+      "furniture_type_id": 1
+  }
 }

@@ -1,0 +1,37 @@
+meta {
+  name: Validar Carrito
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{host}}cart/validate-items
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "items": [
+      { 
+        "productId": 11, 
+        "variantId": null,
+        "quantity": 1 
+      },
+      { 
+        "productId": 22, 
+        "variantId": 24,
+        "quantity": 20 
+      },
+      { 
+        "productId": 60, 
+        "variantId": 24,
+        "quantity": 1
+      }
+    ]
+  }
+}
