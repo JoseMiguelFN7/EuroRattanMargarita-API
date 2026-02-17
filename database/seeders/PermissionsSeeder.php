@@ -89,13 +89,26 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'purchases.delete', 'name' => 'Eliminar Compras'],
             ],
 
-            // 9 Proveedores
+            // 9. Proveedores
             'Proveedores' => [
                 ['slug' => 'suppliers.view',   'name' => 'Ver Proveedores'],
                 ['slug' => 'suppliers.create', 'name' => 'Crear Proveedores'],
                 ['slug' => 'suppliers.edit',   'name' => 'Editar Proveedores'],
                 ['slug' => 'suppliers.delete', 'name' => 'Eliminar Proveedores'],
             ],
+
+            // 10. Ventas
+            'Ventas' => [
+                ['slug' => 'sales.view',   'name' => 'Ver Ventas'],
+            ],
+
+            // 11. Métodos de pago
+            'Métodos de pago' => [
+                ['slug' => 'payment_methods.view',   'name' => 'Ver Métodos de Pago'],
+                ['slug' => 'payment_methods.create',   'name' => 'Crear Métodos de Pago'],
+                ['slug' => 'payment_methods.edit',   'name' => 'Editar Métodos de Pago'],
+                ['slug' => 'payment_methods.delete',   'name' => 'Eliminar Métodos de Pago'],
+            ]
         ];
 
         // Lógica de Creación / Actualización
