@@ -389,6 +389,8 @@ class MaterialController extends Controller
             'price' => 'required|numeric|min:0',
             'discount' => 'required|numeric|min:0|max:100',
             'unit_id' => 'required|numeric|exists:units,id',
+            'min_stock' => 'required|numeric|min:0',
+            'max_stock' => 'nullable|numeric|gte:min_stock',
             'sell' => 'required|boolean',
             'images' => 'nullable|array',
             'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
@@ -426,6 +428,8 @@ class MaterialController extends Controller
                 'product_id' => $product->id,
                 'unit_id' => $request->unit_id,
                 'price' => $request->price,
+                'min_stock' => $request->min_stock,
+                'max_stock' => $request-> max_stock
             ]);
 
             // Procesar colores
@@ -476,6 +480,8 @@ class MaterialController extends Controller
             'price' => 'sometimes|required|numeric|min:0',
             'discount' => 'sometimes|required|numeric|min:0|max:100',
             'unit_id' => 'sometimes|required|numeric|exists:units,id',
+            'min_stock' => 'sometimes|required|numeric|min:0',
+            'max_stock' => 'nullable|numeric|gte:min_stock',
             'images' => 'nullable|array',
             'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
             'kept_images' => 'nullable|array',
@@ -501,7 +507,7 @@ class MaterialController extends Controller
             
             // Actualizar datos del Material
             $material->fill($request->only([
-                'price', 'unit_id', 'profit_per', 'paint_per', 'labor_fab_per'
+                'price', 'unit_id', 'min_stock', 'max_stock'
             ]));
 
             // 2. GESTIÓN DE IMÁGENES

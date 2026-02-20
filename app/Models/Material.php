@@ -9,7 +9,14 @@ class Material extends Model
     protected $fillable = [
         'price',
         'product_id',
-        'unit_id'
+        'unit_id',
+        'min_stock',
+        'max_stock'
+    ];
+
+    protected $casts = [
+        'min_stock' => 'float',
+        'max_stock' => 'float',
     ];
 
     public function product()
