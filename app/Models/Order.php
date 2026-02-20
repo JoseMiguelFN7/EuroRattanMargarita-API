@@ -5,10 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
-class Receipt extends Model
+class Order extends Model
 {
     protected $fillable = [
-        'user_id'
+        'user_id',
+        'status',
+        'exchange_rate',
+        'notes',
+        'code'
     ];
 
     protected static function booted()
@@ -22,12 +26,25 @@ class Receipt extends Model
         });
     }
 
-    public function products(){
-        return $this->belongsToMany(Product::class, 'receipts_products', 'receipt_id', 'product_id')
-                    ->withPivot('quantity', 'price', 'discount');
+    public function products()
+    {
+        return $this->belongsToMany(
+            Product::class, 
+            'order_items',
+            'order_id',
+            'product_id'
+        )
+        ->withPivot('quantity', 'price', 'discount', 'variant_id')
+        ->withTimestamps();
     }
 
-    public function user(){
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    public function user()
+    {
         return $this->belongsTo(User::class, 'user_id');
     }
 }

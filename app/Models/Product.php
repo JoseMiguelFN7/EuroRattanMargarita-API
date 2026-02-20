@@ -30,8 +30,8 @@ class Product extends Model
         return $this->hasMany(ProductMovement::class);
     }
 
-    public function receipts(){
-        return $this->belongsToMany(Receipt::class, 'receipts_products', 'product_id', 'receipt_id')
+    public function orders(){
+        return $this->belongsToMany(Order::class, 'receipts_products', 'product_id', 'receipt_id')
                     ->withPivot('quantity', 'price', 'discount');
     }
 

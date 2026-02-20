@@ -1,0 +1,21 @@
+meta {
+  name: Get Rate
+  type: http
+  seq: 1
+}
+
+get {
+  url: https://bcvapi.tech/api/v1/dolar
+  body: none
+  auth: apikey
+}
+
+headers {
+  x-dolarvzla-key: b6c6b4187db7d2b209da1b15a143e58c9e9b33cb556ca2db28e5542d3309ed30
+}
+
+auth:apikey {
+  key: Authorization
+  value: sk_I7lP1YNRXrr2JPcFFNpsnE5dJRN8xTSf
+  placement: header
+}

@@ -100,6 +100,7 @@ class PermissionsSeeder extends Seeder
             // 10. Ventas
             'Ventas' => [
                 ['slug' => 'sales.view',   'name' => 'Ver Ventas'],
+                ['slug' => 'sales.cancel',   'name' => 'Cancelar Ventas'],
             ],
 
             // 11. Métodos de pago
@@ -108,6 +109,11 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'payment_methods.create',   'name' => 'Crear Métodos de Pago'],
                 ['slug' => 'payment_methods.edit',   'name' => 'Editar Métodos de Pago'],
                 ['slug' => 'payment_methods.delete',   'name' => 'Eliminar Métodos de Pago'],
+            ],
+
+            'Pagos' => [
+                ['slug' => 'payments.view',   'name' => 'Ver Pagos'],
+                ['slug' => 'payments.verify',   'name' => 'Verificar Pagos'],
             ]
         ];
 

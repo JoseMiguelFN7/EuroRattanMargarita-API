@@ -60,6 +60,9 @@ Route::get('/sets/{quantity}', [\App\Http\Controllers\SetController::class, 'ran
 Route::get('/setTypes', [\App\Http\Controllers\SetTypeController::class, 'index']); // Obtener todos los tipos de juego
 Route::get('/setType/{id}', [\App\Http\Controllers\SetTypeController::class, 'show']); // Obtener un tipo de juego específico
 
+// Ruta para obtener tasa de cambio
+Route::get('/currencyExchange/{code}/latest', [\App\Http\Controllers\CurrencyExchangeController::class, 'latest']);
+
 Route::middleware(['auth:sanctum'])->group(function () {
     // Rutas para el CRUD de usuarios
     Route::get('/user/auth', [\App\Http\Controllers\UserController::class, 'getAuth']); //Obtener datos de usuario autenticado
@@ -147,11 +150,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Rutas para el CRUD de stocks
     Route::get('/products/stocks', [\App\Http\Controllers\ProductController::class, 'indexStocks']); // Obtener todos los stocks
 
-    // Rutas para el CRUD de Facturas
-    Route::get('/receipts', [\App\Http\Controllers\ReceiptController::class, 'index']); // Obtener todas las facturas
-    Route::get('/receipt/{id}', [\App\Http\Controllers\ReceiptController::class, 'show']); // Obtener una factura específica
-    Route::post('/receipt', [\App\Http\Controllers\ReceiptController::class, 'store']); // Crear factura
-    Route::delete('/receipt/{id}', [\App\Http\Controllers\ReceiptController::class, 'destroy']); // Eliminar una factura
+    // Rutas para el CRUD de Ordenes
+    Route::get('/orders', [\App\Http\Controllers\OrderController::class, 'index']); // Obtener todas las ordenes
+    Route::get('/orders/auth', [\App\Http\Controllers\OrderController::class, 'myOrders']); // Obtener todas las ordenes del usuario autenticado
+    Route::post('/order/cancel/{id}', [\App\Http\Controllers\OrderController::class, 'cancel']); // Cancelar orden
+    Route::get('/order/{id}', [\App\Http\Controllers\OrderController::class, 'show']); // Obtener una orden específica
+    Route::post('/order', [\App\Http\Controllers\OrderController::class, 'store']); // Crear orden
+    Route::delete('/order/{id}', [\App\Http\Controllers\OrderController::class, 'destroy']); // Eliminar una orden
 
     // Rutas para el CRUD de compras
     Route::get('/purchases', [\App\Http\Controllers\PurchaseController::class, 'index']); // Obtener todas las compras con paginacion
@@ -182,4 +187,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/payment-method', [\App\Http\Controllers\PaymentMethodController::class, 'store']); // Crear un metodo de pago
     Route::post('/payment-method/{id}', [\App\Http\Controllers\PaymentMethodController::class, 'update']); // Actualizar un metodo de pago
     Route::delete('/payment-method/{id}', [\App\Http\Controllers\PaymentMethodController::class, 'destroy']); // Eliminar un metodo de pago
+
+    // Rutas para pagos
+    Route::get('/payments', [\App\Http\Controllers\PaymentController::class, 'index']); // Obtener todos los pagos con paginacion
+    Route::post('/payment', [\App\Http\Controllers\PaymentController::class, 'store']); // Crear pago
+    Route::post('/payment/{id}/verify', [\App\Http\Controllers\PaymentController::class, 'verify']); // Aprobar/Rechazar pago
 });

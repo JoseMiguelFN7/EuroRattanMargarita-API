@@ -479,6 +479,7 @@ class ProductController extends Controller
                                      ? asset('storage/' . $product->images->first()->url) 
                                      : null,
                 'price'           => (float) $price,
+                'discount'        => (float) $product->discount,
                 'stock_available' => (int) $stockAvailable,
                 'quantity'        => (int) $item['quantity'],
                 'insufficient_stock' => $item['quantity'] > $stockAvailable,
