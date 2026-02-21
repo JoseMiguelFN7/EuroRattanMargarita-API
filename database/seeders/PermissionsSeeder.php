@@ -90,7 +90,7 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'purchases.delete', 'name' => 'Eliminar Compras'],
             ],
 
-            // 9. Proveedores
+            // 9. PROVEEDORES
             'Proveedores' => [
                 ['slug' => 'suppliers.view',   'name' => 'Ver Proveedores'],
                 ['slug' => 'suppliers.create', 'name' => 'Crear Proveedores'],
@@ -98,13 +98,13 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'suppliers.delete', 'name' => 'Eliminar Proveedores'],
             ],
 
-            // 10. Ventas
+            // 10. VENTAS
             'Ventas' => [
                 ['slug' => 'sales.view',   'name' => 'Ver Ventas'],
                 ['slug' => 'sales.cancel',   'name' => 'Cancelar Ventas'],
             ],
 
-            // 11. Métodos de pago
+            // 11. MÉTODOS DE PAGO
             'Métodos de pago' => [
                 ['slug' => 'payment_methods.view',   'name' => 'Ver Métodos de Pago'],
                 ['slug' => 'payment_methods.create',   'name' => 'Crear Métodos de Pago'],
@@ -112,9 +112,15 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'payment_methods.delete',   'name' => 'Eliminar Métodos de Pago'],
             ],
 
+            // 12. PAGOS
             'Pagos' => [
                 ['slug' => 'payments.view',   'name' => 'Ver Pagos'],
                 ['slug' => 'payments.verify',   'name' => 'Verificar Pagos'],
+            ],
+
+            // 13. FACTURAS
+            'Facturas' => [
+                ['slug' => 'invoices.view',   'name' => 'Ver Facturas'],
             ]
         ];
 

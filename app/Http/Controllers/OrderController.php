@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\ProductMovement;
+use App\Models\Product;
 use Illuminate\Http\Request;
 use App\Http\Controllers\ProductMovementController;
 use Illuminate\Support\Facades\Validator;
@@ -177,12 +178,10 @@ class OrderController extends Controller
     {
         // 1. VALIDACIÓN
         $validator = Validator::make($request->all(), [
-            // Datos de la Orden
             'user_id'       => 'required|integer|exists:users,id',
             'exchange_rate' => 'required|numeric|min:0',
             'notes'         => 'nullable|string|max:1000',
             
-            // Datos de los Productos
             'products'              => 'required|array',
             'products.*.id'         => 'required|integer|exists:products,id',
             'products.*.variant_id' => 'nullable|integer|exists:colors,id',
@@ -190,7 +189,6 @@ class OrderController extends Controller
             'products.*.price'      => 'required|numeric|min:0',
             'products.*.discount'   => 'nullable|numeric|min:0|max:100',
 
-            // Datos del Pago
             'payment_amount'      => 'nullable|numeric|min:0.01',
             'payment_currency_id' => 'required_with:payment_amount|exists:currencies,id',
             'payment_method_id'   => 'required_with:payment_amount|exists:payment_methods,id',
@@ -218,11 +216,16 @@ class OrderController extends Controller
 
             $now = $order->created_at;
 
+            // OPTIMIZACIÓN: Cargamos todos los productos involucrados de una vez para evitar consultas N+1
+            $productIds = collect($request->products)->pluck('id');
+            $productsData = Product::with('set.furnitures')->whereIn('id', $productIds)->get()->keyBy('id');
+
             // 3. RECORRER PRODUCTOS (Pivot + Movimiento Manual)
             foreach ($request->products as $item) {
                 $variantId = $item['variant_id'] ?? null;
+                $productModel = $productsData[$item['id']];
 
-                // A. Insertar en tabla intermedia (Detalle de Orden)
+                // A. Insertar en tabla intermedia (La factura sigue mostrando el Juego o Producto tal cual)
                 $order->products()->attach($item['id'], [
                     'quantity'   => $item['quantity'],
                     'price'      => $item['price'],
@@ -230,17 +233,34 @@ class OrderController extends Controller
                     'variant_id' => $variantId,
                 ]);
 
-                // B. Crear Movimiento de Inventario Manualmente
-                ProductMovement::create([
-                    'product_id'        => $item['id'],
-                    'color_id'        => $variantId,
-                    'quantity'          => -abs($item['quantity']), // Resta inventario
-                    'created_at'        => $now,   // Mantenemos la fecha de la orden
-                    
-                    // --- CAMPOS POLIMÓRFICOS ---
-                    'movementable_id'   => $order->id,            // ID de la Orden
-                    'movementable_type' => \App\Models\Order::class, // Clase del modelo Order
-                ]);
+                // B. Crear Movimiento(s) de Inventario
+                if ($productModel->set && $productModel->set->furnitures) {
+                    // Es un Juego: Iteramos sobre los muebles que lo componen
+                    foreach ($productModel->set->furnitures as $furniture) {
+                        // Calculamos la cantidad real a descontar: (Cantidad de juegos) * (Cantidad de este mueble por juego)
+                        $qtyPerSet = $furniture->pivot->quantity;
+                        $totalToDeduct = -abs($item['quantity'] * $qtyPerSet);
+
+                        ProductMovement::create([
+                            'product_id'        => $furniture->product_id, // Usamos el product_id del mueble individual
+                            'color_id'          => $variantId, // Aplicamos el color del juego a los muebles
+                            'quantity'          => $totalToDeduct,
+                            'movement_date'     => $now,
+                            'movementable_id'   => $order->id,
+                            'movementable_type' => Order::class,
+                        ]);
+                    }
+                } else {
+                    // Es un producto normal (Mueble individual, Material, etc.)
+                    ProductMovement::create([
+                        'product_id'        => $item['id'],
+                        'color_id'          => $variantId,
+                        'quantity'          => -abs($item['quantity']),
+                        'movement_date'     => $now,
+                        'movementable_id'   => $order->id,
+                        'movementable_type' => Order::class,
+                    ]);
+                }
             }
 
             // 4. PROCESAR PAGO

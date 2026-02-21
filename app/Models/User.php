@@ -87,7 +87,7 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->role->permissions->contains('slug', $permissionSlug);
     }
 
-    public function receipts(){
-        return $this->hasMany(Receipt::class, 'user_id');
+    public function orders(){
+        return $this->hasMany(Order::class, 'user_id');
     }
 }
