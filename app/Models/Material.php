@@ -33,6 +33,7 @@ class Material extends Model
     }
 
     public function furnitures(){
-        return $this->belongsToMany(Furniture::class, 'furnitures_materials', 'material_id', 'furniture_id');
+        return $this->belongsToMany(Furniture::class, 'furnitures_materials', 'material_id', 'furniture_id')
+                    ->withPivot('quantity', 'color_id');;
     }
 }

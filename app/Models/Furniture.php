@@ -27,7 +27,7 @@ class Furniture extends Model
 
     public function materials(){
         return $this->belongsToMany(Material::class, 'furnitures_materials', 'furniture_id', 'material_id')
-                    ->withPivot('quantity');
+                    ->withPivot('quantity', 'color_id');
     }
 
     public function labors(){

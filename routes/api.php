@@ -106,6 +106,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     //Rutas para el CRUD de muebles
     Route::get('/furnitures/noPage/all', [\App\Http\Controllers\FurnitureController::class, 'listAll']); //Obtener todos los muebles sin paginación
     Route::post('/furniture', [\App\Http\Controllers\FurnitureController::class, 'store']); //Crear un mueble
+    Route::post('/furniture/manufacture/{id}', [\App\Http\Controllers\FurnitureController::class, 'manufacture']); // adicionar existencias de un mueble
     Route::post('/furniture/{id}', [\App\Http\Controllers\FurnitureController::class, 'update']); //Actualizar un mueble
     Route::delete('/furniture/{id}', [\App\Http\Controllers\FurnitureController::class, 'destroy']); //Eliminar un mueble
 

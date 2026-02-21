@@ -33,6 +33,7 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'furnitures.create', 'name' => 'Crear Muebles'],
                 ['slug' => 'furnitures.edit',   'name' => 'Editar Muebles'],
                 ['slug' => 'furnitures.delete', 'name' => 'Eliminar Muebles'],
+                ['slug' => 'furnitures.stock.add', 'name' => 'Adicionar Stocks de Muebles'],
                 ['slug' => 'furnitures.parameters.view', 'name' => 'Ver Parámetros de Muebles'],
                 ['slug' => 'furnitures.parameters.create', 'name' => 'Crear Parámetros de Muebles'],
                 ['slug' => 'furnitures.parameters.edit', 'name' => 'Editar Parámetros de Muebles'],

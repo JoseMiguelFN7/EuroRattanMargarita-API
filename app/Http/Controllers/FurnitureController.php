@@ -5,10 +5,10 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Furniture;
 use App\Models\Product;
+use App\Models\ProductStockView;
+use App\Models\ProductMovement;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
-use Illuminate\Support\Facades\Storage;
 
 class FurnitureController extends Controller
 {
@@ -257,9 +257,7 @@ class FurnitureController extends Controller
         
         if ($furniture->materials) {
             // Solo ocultamos fechas del material, pero dejamos el ID, nombre, precio y el PIVOT
-            $furniture->materials->makeHidden(['created_at', 'updated_at', 'profit_per', 'paint_per', 'labor_fab_per']);
-            
-            // Opcional: Si quieres limpiar el pivot visualmente (quitar timestamps del pivot)
+            $furniture->materials->makeHidden(['created_at', 'updated_at', 'min_stock', 'max_stock']);
             
             $furniture->materials->each(function($mat){
                 if($mat->pivot) $mat->pivot->makeHidden(['created_at', 'updated_at']);
@@ -308,7 +306,6 @@ class FurnitureController extends Controller
         return response()->json($furnitures);
     }
 
-    //Crear mueble
     public function store(Request $request){
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
@@ -318,6 +315,7 @@ class FurnitureController extends Controller
             'materials' => 'required|array',
             'materials.*.id' => 'required|integer|exists:materials,id',
             'materials.*.quantity' => 'required|numeric|min:0',
+            'materials.*.color_id' => 'nullable|integer|exists:colors,id', // <-- NUEVA VALIDACIÓN
             'labors' => 'required|array',
             'labors.*.id' => 'required|integer|exists:labors,id',
             'labors.*.days' => 'required|numeric|min:0',
@@ -369,7 +367,11 @@ class FurnitureController extends Controller
             // Procesar materiales
             $materialsData = [];
             foreach ($request->materials as $material) {
-                $materialsData[$material['id']] = ['quantity' => $material['quantity']];
+                // <-- AHORA AGREGAMOS EL COLOR_ID AL ARREGLO DEL PIVOTE
+                $materialsData[$material['id']] = [
+                    'quantity' => $material['quantity'],
+                    'color_id' => $material['color_id'] ?? null 
+                ];
             }
             $furniture->materials()->sync($materialsData);
 
@@ -417,12 +419,13 @@ class FurnitureController extends Controller
         // 1. VALIDACIÓN
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
-            'code' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('products', 'code')->ignore($product->id)],
+            'code' => ['sometimes', 'required', 'string', 'max:255', \Illuminate\Validation\Rule::unique('products', 'code')->ignore($product->id)],
             'description' => 'sometimes|required|string|max:500',
             'furnitureType_id' => 'sometimes|required|integer|exists:furniture_types,id',
             'materials' => 'sometimes|required|array',
             'materials.*.id' => 'required|integer|exists:materials,id',
             'materials.*.quantity' => 'required|numeric|min:0',
+            'materials.*.color_id' => 'nullable|integer|exists:colors,id', // <-- NUEVA VALIDACIÓN
             'labors' => 'sometimes|required|array',
             'labors.*.id' => 'required|integer|exists:labors,id',
             'labors.*.days' => 'required|numeric|min:0',
@@ -469,8 +472,8 @@ class FurnitureController extends Controller
                 $imagesToDelete = $product->images()->whereNotIn('id', $keptIds)->get();
 
                 foreach ($imagesToDelete as $img) {
-                    if (Storage::disk('public')->exists($img->url)) {
-                        Storage::disk('public')->delete($img->url);
+                    if (\Illuminate\Support\Facades\Storage::disk('public')->exists($img->url)) {
+                        \Illuminate\Support\Facades\Storage::disk('public')->delete($img->url);
                     }
                     $img->delete();
                 }
@@ -485,10 +488,16 @@ class FurnitureController extends Controller
 
             // 4. SINCRONIZACIÓN DE COMPONENTES (Materiales y Mano de Obra)
             if ($request->has('materials')) {
-                // Preparamos el array con pivote ['quantity' => x]
+                // Preparamos el array con pivote ['quantity' => x, 'color_id' => y]
                 $materialsData = collect($request->materials)->mapWithKeys(function ($material) {
-                    return [$material['id'] => ['quantity' => $material['quantity']]];
+                    return [
+                        $material['id'] => [
+                            'quantity' => $material['quantity'],
+                            'color_id' => $material['color_id'] ?? null // <-- AÑADIMOS EL COLOR AQUÍ
+                        ]
+                    ];
                 })->toArray();
+                
                 $furniture->materials()->sync($materialsData);
             }
 
@@ -545,14 +554,21 @@ class FurnitureController extends Controller
 
             $product = $furniture->product;
 
+            // 1. Limpiamos las tablas intermedias del mueble
+            $furniture->materials()->detach();
+            $furniture->labors()->detach();
+
+            // 2. Eliminamos el mueble
             $furniture->delete();
+            
             if ($product) {
-                // Llamar al controlador de colores para eliminar los colores asociadas
-                app(ColorController::class)->detachAndDeleteOrphanColors($product->id);
+                // 3. Simplemente eliminamos la relación en la tabla intermedia de colores
+                $product->colors()->detach();
 
                 // Llamar al controlador de imágenes para eliminar las imágenes asociadas
                 app(ProductImageController::class)->deleteImages($product->id);
                 
+                // 4. Eliminamos el producto base
                 $product->delete();
             }
 
@@ -573,4 +589,113 @@ class FurnitureController extends Controller
             ], 500);
         }
     }
+
+    public function manufacture(Request $request)
+{
+    // 1. Validar la petición base
+    $request->validate([
+        'furniture_id' => 'required|integer|exists:furnitures,id',
+        'quantity' => 'required|integer|min:1',
+        'furniture_color_id' => 'required|integer|exists:colors,id' // Estrictamente requerido
+    ]);
+
+    // Cargamos el mueble con sus materiales y los colores permitidos para su producto base
+    $furniture = Furniture::with(['materials.product', 'product.colors'])->find($request->furniture_id);
+    $quantityToBuild = $request->quantity;
+    $colorToBuild = $request->furniture_color_id;
+
+    // 2. VALIDACIÓN DEL COLOR DEL MUEBLE
+    // Extraemos los IDs de los colores permitidos para este producto
+    $allowedColors = $furniture->product->colors->pluck('id')->toArray();
+    
+    if (!in_array($colorToBuild, $allowedColors)) {
+        return response()->json([
+            'message' => 'El color seleccionado no está asociado a este mueble.',
+            'allowed_colors' => $furniture->product->colors // Lo devolvemos para ayudar al frontend
+        ], 422); // Unprocessable Entity
+    }
+
+    // 3. VERIFICACIÓN DE STOCK DE MATERIALES
+    $shortages = []; 
+
+    foreach ($furniture->materials as $material) {
+        $totalNeeded = $material->pivot->quantity * $quantityToBuild;
+        $materialColorId = $material->pivot->color_id;
+
+        // Consultamos la vista de stock
+        $stockRecord = ProductStockView::where('productID', $material->product_id)
+            ->when($materialColorId, function ($query) use ($materialColorId) {
+                return $query->where('colorID', $materialColorId);
+            }, function ($query) {
+                return $query->whereNull('colorID');
+            })
+            ->first();
+
+        $currentStock = $stockRecord ? (float) $stockRecord->stock : 0;
+
+        if ($currentStock < $totalNeeded) {
+            $shortages[] = [
+                'material_name' => $material->product->name ?? 'Material Desconocido',
+                'color_id'      => $materialColorId,
+                'required'      => $totalNeeded,
+                'available'     => $currentStock,
+                'missing'       => $totalNeeded - $currentStock
+            ];
+        }
+    }
+
+    // Si hay faltantes, abortamos
+    if (!empty($shortages)) {
+        return response()->json([
+            'message' => 'Stock insuficiente para fabricar esta cantidad de muebles.',
+            'shortages' => $shortages
+        ], 400); 
+    }
+
+    // 4. EJECUCIÓN (Transacción)
+    DB::beginTransaction();
+
+    try {
+        $now = now();
+
+        // A. Sumar el mueble terminado al inventario (Obligatoriamente con su color)
+        ProductMovement::create([
+            'product_id' => $furniture->product_id,
+            'quantity' => $quantityToBuild, 
+            'color_id' => $colorToBuild, // Pasó la validación estricta
+            'movement_date' => $now,
+            'movementable_id' => $furniture->id,
+            'movementable_type' => Furniture::class,
+        ]);
+
+        // B. Descontar los materiales utilizados
+        foreach ($furniture->materials as $material) {
+            $totalUsed = $material->pivot->quantity * $quantityToBuild;
+
+            ProductMovement::create([
+                'product_id' => $material->product_id,
+                'quantity' => -$totalUsed,
+                'color_id' => $material->pivot->color_id,
+                'movement_date' => $now,
+                'movementable_id' => $furniture->id,
+                'movementable_type' => Furniture::class,
+            ]);
+        }
+
+        DB::commit();
+
+        return response()->json([
+            'message' => 'Fabricación registrada con éxito. Inventario actualizado.',
+            'manufactured_quantity' => $quantityToBuild
+        ], 200);
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+
+        return response()->json([
+            'message' => 'Ocurrió un error al procesar el inventario.',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
 }
