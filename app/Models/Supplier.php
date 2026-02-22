@@ -14,7 +14,10 @@ class Supplier extends Model
         'rif',
         'email',
         'phone',
-        'address'
+        'address',
+        'contact_name',
+        'contact_email',
+        'contact_phone'
     ];
 
     // Relación: Un proveedor tiene muchas compras

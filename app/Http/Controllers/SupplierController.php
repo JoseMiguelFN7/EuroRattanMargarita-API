@@ -19,11 +19,12 @@ class SupplierController extends Controller
 
         $query = Supplier::query();
 
-        // Filtro de búsqueda (Nombre o RIF)
+        // Filtro de búsqueda extendido para buscar también por nombre de contacto
         if ($search) {
             $query->where(function($q) use ($search) {
                 $q->where('name', 'LIKE', "%{$search}%")
-                  ->orWhere('rif', 'LIKE', "%{$search}%");
+                  ->orWhere('rif', 'LIKE', "%{$search}%")
+                  ->orWhere('contact_name', 'LIKE', "%{$search}%");
             });
         }
 
@@ -48,11 +49,14 @@ class SupplierController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'name'    => 'required|string|max:255',
-            'rif'     => 'required|string|max:20|unique:suppliers,rif', // RIF único
-            'email'   => 'nullable|email|max:255',
-            'phone'   => 'nullable|string|max:20',
-            'address' => 'nullable|string|max:500',
+            'name'          => 'required|string|max:255',
+            'rif'           => 'required|string|max:20|unique:suppliers,rif',
+            'email'         => 'nullable|email|max:255',
+            'phone'         => 'nullable|string|max:20',
+            'address'       => 'nullable|string|max:500',
+            'contact_name'  => 'nullable|string|max:255',
+            'contact_email' => 'nullable|email|max:255',
+            'contact_phone' => 'nullable|string|max:20',
         ]);
 
         if ($validator->fails()) {
@@ -101,17 +105,19 @@ class SupplierController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'name'    => 'required|string|max:255',
-            // TRUCO: Validar unique ignorando el ID actual para no dar error si no cambias el RIF
-            'rif'     => [
+            'name'          => 'required|string|max:255',
+            'rif'           => [
                 'required', 
                 'string', 
                 'max:20', 
                 Rule::unique('suppliers')->ignore($supplier->id)
             ],
-            'email'   => 'nullable|email|max:255',
-            'phone'   => 'nullable|string|max:20',
-            'address' => 'nullable|string|max:500',
+            'email'         => 'nullable|email|max:255',
+            'phone'         => 'nullable|string|max:20',
+            'address'       => 'nullable|string|max:500',
+            'contact_name'  => 'nullable|string|max:255',
+            'contact_email' => 'nullable|email|max:255',
+            'contact_phone' => 'nullable|string|max:20',
         ]);
 
         if ($validator->fails()) {
@@ -145,13 +151,10 @@ class SupplierController extends Controller
             return response()->json(['message' => 'Proveedor no encontrado'], 404);
         }
 
-        // Validación de Integridad Referencial
-        // Si intentas borrar un proveedor que tiene compras, la BD dará error (Foreign Key Constraint)
-        // Es mejor validarlo antes para dar un mensaje amigable.
         if ($supplier->purchases()->exists()) {
             return response()->json([
                 'message' => 'No se puede eliminar el proveedor porque tiene compras registradas.'
-            ], 409); // Conflict
+            ], 409);
         }
 
         try {
