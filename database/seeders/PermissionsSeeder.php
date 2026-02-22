@@ -121,6 +121,14 @@ class PermissionsSeeder extends Seeder
             // 13. FACTURAS
             'Facturas' => [
                 ['slug' => 'invoices.view',   'name' => 'Ver Facturas'],
+            ],
+
+            // 14. CONFIGURACIONES
+            'Configuraciones' => [
+                ['slug' => 'banner_images.view',   'name' => 'Ver Imágenes del Banner'],
+                ['slug' => 'banner_images.create',   'name' => 'Crear Imágenes del Banner'],
+                ['slug' => 'banner_images.edit',   'name' => 'Editar Imágenes del Banner'],
+                ['slug' => 'banner_images.delete',   'name' => 'Eliminar Imágenes del Banner'],
             ]
         ];
 

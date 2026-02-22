@@ -63,6 +63,9 @@ Route::get('/setType/{id}', [\App\Http\Controllers\SetTypeController::class, 'sh
 // Ruta para obtener tasa de cambio
 Route::get('/currencyExchange/{code}/latest', [\App\Http\Controllers\CurrencyExchangeController::class, 'latest']);
 
+// Rutas para imagenes de banners
+Route::get('/banners/active', [\App\Http\Controllers\BannerImageController::class, 'active']); //Obtener imagenes activas para index de tienda
+
 Route::middleware(['auth:sanctum'])->group(function () {
     // Rutas para el CRUD de usuarios
     Route::get('/user/auth', [\App\Http\Controllers\UserController::class, 'getAuth']); //Obtener datos de usuario autenticado
@@ -196,4 +199,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/payments', [\App\Http\Controllers\PaymentController::class, 'index']); // Obtener todos los pagos con paginacion
     Route::post('/payment', [\App\Http\Controllers\PaymentController::class, 'store']); // Crear pago
     Route::post('/payment/{id}/verify', [\App\Http\Controllers\PaymentController::class, 'verify']); // Aprobar/Rechazar pago
+
+    // Rutas para imagenes de banners
+    Route::get('/banners', [\App\Http\Controllers\BannerImageController::class, 'index']); // Obtener todos los Banners con paginación
+    Route::post('/banner', [\App\Http\Controllers\BannerImageController::class, 'store']); // Crear Banner
+    Route::get('/banner/{id}', [\App\Http\Controllers\BannerImageController::class, 'show']); // Obtener Banner
+    Route::post('/banner/{id}', [\App\Http\Controllers\BannerImageController::class, 'update']); // Actualizar Banner
+    Route::delete('/banner/{id}', [\App\Http\Controllers\BannerImageController::class, 'destroy']); // Eliminar Banner
 });
