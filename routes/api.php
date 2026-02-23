@@ -145,6 +145,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     //Rutas para el CRUD de movimientos de productos
     Route::get('/productMovements', [\App\Http\Controllers\ProductMovementController::class, 'index']); // Obtener todos los movimientos
+    Route::get('/productMovements/code/{code}', [\App\Http\Controllers\ProductMovementController::class, 'getMovementsByProductCode']); // Obtener movimientos de un producto por su código con paginación
     Route::get('/productMovements/{id}', [\App\Http\Controllers\ProductMovementController::class, 'indexProduct']); // Obtener todos los movimientos de un producto
     Route::get('/productMovement/{id}', [\App\Http\Controllers\ProductMovementController::class, 'show']); // Obtener movimiento específico
     Route::post('/productMovement', [\App\Http\Controllers\ProductMovementController::class, 'store']); //Crear movimiento

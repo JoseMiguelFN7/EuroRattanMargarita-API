@@ -60,6 +60,89 @@ class ProductMovementController extends Controller
         return response()->json($productMovements, 200);
     }
 
+    public function getMovementsByProductCode(Request $request, $code)
+    {
+        // 1. Buscamos el producto por su código
+        $product = Product::where('code', $code)->firstOrFail();
+        
+        $perPage = $request->input('per_page', 10);
+
+        // 2. Consultamos los movimientos con Eager Loading (Evita N+1)
+        $movements = ProductMovement::with([
+            'color',
+            'movementable' => function ($morphTo) {
+                $morphTo->morphWith([
+                    \App\Models\Purchase::class  => ['supplier'],
+                    \App\Models\Order::class     => ['user'],
+                    \App\Models\Furniture::class => ['product'],
+                ]);
+            }
+        ])
+        ->where('product_id', $product->id)
+        ->orderBy('movement_date', 'desc') 
+        ->paginate($perPage);
+
+        // 3. Transformamos la data (Claves en inglés, valores en español)
+        $movements->through(function ($movement) {
+            
+            // Valores por defecto en español
+            $originType    = 'Otro';
+            $reason        = 'Ajuste / Otro';
+            $details       = '';
+            $user          = 'N/A';
+            $referenceId   = null;
+            $referenceCode = null;
+
+            switch ($movement->movementable_type) {
+                
+                case \App\Models\Purchase::class:
+                    $originType    = 'Compra';
+                    $reason        = 'Reabastecimiento de inventario';
+                    $details       = 'Proveedor: ' . ($movement->movementable->supplier->name ?? 'Desconocido');
+                    $referenceId   = $movement->movementable->id ?? null;
+                    $referenceCode = $movement->movementable->code ?? null;
+                    break;
+
+                case \App\Models\Order::class:
+                    $originType    = 'Orden';
+                    $reason        = 'Venta / Orden de cliente';
+                    $details       = 'Orden N° ' . ($movement->movementable->code ?? 'N/A');
+                    $user          = $movement->movementable->user->name ?? 'Cliente Desconocido';
+                    $referenceId   = $movement->movementable->id ?? null;
+                    $referenceCode = $movement->movementable->code ?? null;
+                    break;
+
+                case \App\Models\Furniture::class:
+                    $originType    = 'Fabricación';
+                    $reason        = $movement->quantity > 0 ? 'Ingreso por fabricación' : 'Material usado en fabricación';
+                    $details       = 'Mueble: ' . ($movement->movementable->product->name ?? 'Desconocido');
+                    $referenceId   = $movement->movementable->id ?? null;
+                    break;
+            }
+
+            return [
+                'id'         => $movement->id,
+                'datetime'   => $movement->movement_date ?? $movement->created_at,
+                'type'       => $movement->quantity > 0 ? 'Entrada' : 'Salida',
+                'quantity'   => abs($movement->quantity),
+                
+                'variant'    => $movement->color ? $movement->color->name : 'Sin variante',
+                'hex'        => $movement->color ? $movement->color->hex : null, 
+                
+                'reason'     => $reason,
+                'details'    => $details,
+                'user'       => $user,
+                'reference'  => [
+                    'type'   => $originType,
+                    'id'     => $referenceId,
+                    'code'   => $referenceCode
+                ]
+            ];
+        });
+
+        return response()->json($movements);
+    }
+
     //Obtener movimiento por ID
     public function show($id)
     {

@@ -18,13 +18,14 @@ class PermissionsSeeder extends Seeder
         $permissions = [
             // 1. CONTROL DE ACCESO (La llave del Dashboard)
             'Acceso' => [
-                ['slug' => 'view.admin_dashboard', 'name' => 'Acceder al Panel Administrativo'],
+                ['slug' => 'view.admin_dashboard',  'name' => 'Acceder al Panel Administrativo'],
                 ['slug' => 'view.client_dashboard', 'name' => 'Acceder al Panel de Clientes'],
             ],
 
             // 2. PRODUCTOS
             'Productos' => [
-                ['slug' => 'products.buy',   'name' => 'Comprar Productos'],
+                ['slug' => 'products.buy',              'name' => 'Comprar Productos'],
+                ['slug' => 'products.movements.view',   'name' => 'Ver Movimientos de Productos'],
             ],
 
             // 3. MUEBLES
@@ -33,10 +34,10 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'furnitures.create', 'name' => 'Crear Muebles'],
                 ['slug' => 'furnitures.edit',   'name' => 'Editar Muebles'],
                 ['slug' => 'furnitures.delete', 'name' => 'Eliminar Muebles'],
-                ['slug' => 'furnitures.stock.add', 'name' => 'Adicionar Stocks de Muebles'],
-                ['slug' => 'furnitures.parameters.view', 'name' => 'Ver Parámetros de Muebles'],
+                ['slug' => 'furnitures.stock.add',         'name' => 'Adicionar Stocks de Muebles'],
+                ['slug' => 'furnitures.parameters.view',   'name' => 'Ver Parámetros de Muebles'],
                 ['slug' => 'furnitures.parameters.create', 'name' => 'Crear Parámetros de Muebles'],
-                ['slug' => 'furnitures.parameters.edit', 'name' => 'Editar Parámetros de Muebles'],
+                ['slug' => 'furnitures.parameters.edit',   'name' => 'Editar Parámetros de Muebles'],
                 ['slug' => 'furnitures.parameters.delete', 'name' => 'Eliminar Parámetros de Muebles'],
             ],
 
@@ -46,9 +47,9 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'materials.create', 'name' => 'Crear Materiales'],
                 ['slug' => 'materials.edit',   'name' => 'Editar Materiales'],
                 ['slug' => 'materials.delete', 'name' => 'Eliminar Materiales'],
-                ['slug' => 'materials.parameters.view', 'name' => 'Ver Parámetros de Materiales'],
+                ['slug' => 'materials.parameters.view',   'name' => 'Ver Parámetros de Materiales'],
                 ['slug' => 'materials.parameters.create', 'name' => 'Crear Parámetros de Materiales'],
-                ['slug' => 'materials.parameters.edit', 'name' => 'Editar Parámetros de Materiales'],
+                ['slug' => 'materials.parameters.edit',   'name' => 'Editar Parámetros de Materiales'],
                 ['slug' => 'materials.parameters.delete', 'name' => 'Eliminar Parámetros de Materiales'],
             ],
 
@@ -58,9 +59,9 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'sets.create', 'name' => 'Crear Juegos'],
                 ['slug' => 'sets.edit',   'name' => 'Editar Juegos'],
                 ['slug' => 'sets.delete', 'name' => 'Eliminar Juegos'],
-                ['slug' => 'sets.parameters.view', 'name' => 'Ver Parámetros de Juegos'],
+                ['slug' => 'sets.parameters.view',   'name' => 'Ver Parámetros de Juegos'],
                 ['slug' => 'sets.parameters.create', 'name' => 'Crear Parámetros de Juegos'],
-                ['slug' => 'sets.parameters.edit', 'name' => 'Editar Parámetros de Juegos'],
+                ['slug' => 'sets.parameters.edit',   'name' => 'Editar Parámetros de Juegos'],
                 ['slug' => 'sets.parameters.delete', 'name' => 'Eliminar Parámetros de Juegos'],
             ],
 
@@ -101,21 +102,21 @@ class PermissionsSeeder extends Seeder
             // 10. VENTAS
             'Ventas' => [
                 ['slug' => 'sales.view',   'name' => 'Ver Ventas'],
-                ['slug' => 'sales.cancel',   'name' => 'Cancelar Ventas'],
+                ['slug' => 'sales.cancel', 'name' => 'Cancelar Ventas'],
             ],
 
             // 11. MÉTODOS DE PAGO
             'Métodos de pago' => [
                 ['slug' => 'payment_methods.view',   'name' => 'Ver Métodos de Pago'],
-                ['slug' => 'payment_methods.create',   'name' => 'Crear Métodos de Pago'],
+                ['slug' => 'payment_methods.create', 'name' => 'Crear Métodos de Pago'],
                 ['slug' => 'payment_methods.edit',   'name' => 'Editar Métodos de Pago'],
-                ['slug' => 'payment_methods.delete',   'name' => 'Eliminar Métodos de Pago'],
+                ['slug' => 'payment_methods.delete', 'name' => 'Eliminar Métodos de Pago'],
             ],
 
             // 12. PAGOS
             'Pagos' => [
                 ['slug' => 'payments.view',   'name' => 'Ver Pagos'],
-                ['slug' => 'payments.verify',   'name' => 'Verificar Pagos'],
+                ['slug' => 'payments.verify', 'name' => 'Verificar Pagos'],
             ],
 
             // 13. FACTURAS
@@ -126,9 +127,9 @@ class PermissionsSeeder extends Seeder
             // 14. CONFIGURACIONES
             'Configuraciones' => [
                 ['slug' => 'banner_images.view',   'name' => 'Ver Imágenes del Banner'],
-                ['slug' => 'banner_images.create',   'name' => 'Crear Imágenes del Banner'],
+                ['slug' => 'banner_images.create', 'name' => 'Crear Imágenes del Banner'],
                 ['slug' => 'banner_images.edit',   'name' => 'Editar Imágenes del Banner'],
-                ['slug' => 'banner_images.delete',   'name' => 'Eliminar Imágenes del Banner'],
+                ['slug' => 'banner_images.delete', 'name' => 'Eliminar Imágenes del Banner'],
             ]
         ];
 

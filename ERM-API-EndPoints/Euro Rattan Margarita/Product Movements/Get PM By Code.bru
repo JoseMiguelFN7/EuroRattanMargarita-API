@@ -1,11 +1,11 @@
 meta {
-  name: Get All Invoices
+  name: Get PM By Code
   type: http
-  seq: 1
+  seq: 7
 }
 
 get {
-  url: {{host}}invoices
+  url: {{host}}productMovements/code/C1
   body: none
   auth: bearer
 }
