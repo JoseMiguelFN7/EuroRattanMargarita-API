@@ -17,21 +17,32 @@ class MaterialController extends Controller
     public function index(Request $request)
     {
         $perPage = $request->input('per_page', 8);
+        $search  = $request->input('search'); // 1. Capturamos el término de búsqueda
 
-        // 1. CARGA ANSIOSA (Eager Loading)
-        // Incluimos 'product.stocks' para que lea la VISTA automáticamente
-        $materials = Material::with([
+        // 2. Iniciamos el Query Builder con la Carga Ansiosa
+        $query = Material::with([
             'materialTypes', 
             'unit', 
             'product.images', 
             'product.stocks',
-        ])->paginate($perPage);
+        ]);
 
-        // 2. LIMPIEZA DE DATOS
+        // 3. Aplicamos el filtro de búsqueda si el frontend envió el parámetro
+        if ($search) {
+            // Buscamos dentro de la relación 'product'
+            $query->whereHas('product', function ($q) use ($search) {
+                $q->where('name', 'LIKE', "%{$search}%")
+                  ->orWhere('code', 'LIKE', "%{$search}%");
+            });
+        }
+
+        // 4. Ejecutamos la consulta paginada
+        $materials = $query->paginate($perPage);
+
+        // 5. LIMPIEZA DE DATOS (Se mantiene exactamente igual)
         $materials->through(function ($material) {
             
             // --- Nivel Material ---
-            // Ocultamos IDs internos y timestamps que ensucian
             $material->makeHidden(['created_at', 'updated_at', 'product_id', 'unit_id']);
 
             // --- Nivel Producto ---
@@ -39,20 +50,13 @@ class MaterialController extends Controller
                 $prod = $material->product;
 
                 $prod->images->each(function ($image) {
-                    // 1. Generamos la URL completa
                     $image->url = asset('storage/' . $image->url);
-                    // 2. Limpiamos la basura de cada objeto imagen
                     $image->makeHidden(['created_at', 'updated_at', 'product_id']);
                 });
                 
-                // B. Ocultamos la galería completa y datos innecesarios del producto
                 $prod->makeHidden(['created_at', 'updated_at', 'sell', 'description']);
 
-                // C. Stock (VISTA SQL): Limpiamos lo que sobra
-                // Como la vista ya trae 'productID' y 'stock', solo quitamos lo que no sirva
                 if ($prod->stocks) {
-                    // Ocultamos productID porque ya está dentro del objeto producto
-                    // y cualquier otro campo raro que traiga la vista
                     $prod->stocks->makeHidden(['productID', 'productCode']);
                 }
             }

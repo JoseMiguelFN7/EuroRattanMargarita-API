@@ -12,31 +12,45 @@ use Illuminate\Support\Facades\DB;
 
 class FurnitureController extends Controller
 {
-    // Obtener todos los muebles
     public function index(Request $request)
     {
         $perPage = $request->input('per_page', 8);
+        $search  = $request->input('search'); // 1. Capturamos el término de búsqueda
 
-        $furnitures = Furniture::with([
+        // 2. Iniciamos el Query Builder con la Carga Ansiosa
+        $query = Furniture::with([
             'furnitureType', 
             'product.images', 
             'product.stocks',
             'materials.materialTypes',
             'labors'
-        ])
-        ->paginate($perPage);
+        ]);
 
-        // 2. TRANSFORMACIÓN
-        $furnitures = $furnitures->through(function ($furniture) {
+        // 3. Aplicamos el filtro de búsqueda
+        if ($search) {
+            // Buscamos dentro de la relación 'product' (por nombre o código)
+            $query->whereHas('product', function ($q) use ($search) {
+                $q->where('name', 'LIKE', "%{$search}%")
+                  ->orWhere('code', 'LIKE', "%{$search}%");
+            });
+        }
+
+        // 4. Ejecutamos la paginación
+        $furnitures = $query->paginate($perPage);
+
+        // 5. TRANSFORMACIÓN (Se mantiene igual)
+        $furnitures->through(function ($furniture) {
             
             $product = $furniture->product;
 
-            $product->images->each(function ($image) {
-                // 1. Generamos la URL completa
-                $image->url = asset('storage/' . $image->url);
-                // 2. Limpiamos la basura de cada objeto imagen
-                $image->makeHidden(['created_at', 'updated_at', 'product_id']);
-            });
+            if ($product && $product->images) {
+                $product->images->each(function ($image) {
+                    // 1. Generamos la URL completa
+                    $image->url = asset('storage/' . $image->url);
+                    // 2. Limpiamos la basura de cada objeto imagen
+                    $image->makeHidden(['created_at', 'updated_at', 'product_id']);
+                });
+            }
 
             // --- Precios ---
             $precios = $furniture->calcularPrecios();
@@ -44,12 +58,18 @@ class FurnitureController extends Controller
             $furniture->pvp_color = $precios['pvp_color'];
 
             // --- Stock ---
-            $product->stocks->makeHidden(['productID', 'productCode']);
+            if ($product && $product->stocks) {
+                $product->stocks->makeHidden(['productID', 'productCode']);
+            }
 
+            if ($product) {
+                $product->makeHidden(['created_at', 'updated_at']);
+            }
 
-            $product->makeHidden(['created_at', 'updated_at']);
-
-            $furniture->furnitureType->makeHidden(['created_at', 'updated_at']);
+            if ($furniture->furnitureType) {
+                $furniture->furnitureType->makeHidden(['created_at', 'updated_at']);
+            }
+            
             $furniture->makeHidden(['materials', 'labors', 'product_id', 'furniture_type_id', 'created_at', 'updated_at']);
 
             return $furniture;
@@ -591,111 +611,111 @@ class FurnitureController extends Controller
     }
 
     public function manufacture(Request $request)
-{
-    // 1. Validar la petición base
-    $request->validate([
-        'furniture_id' => 'required|integer|exists:furnitures,id',
-        'quantity' => 'required|integer|min:1',
-        'furniture_color_id' => 'required|integer|exists:colors,id' // Estrictamente requerido
-    ]);
-
-    // Cargamos el mueble con sus materiales y los colores permitidos para su producto base
-    $furniture = Furniture::with(['materials.product', 'product.colors'])->find($request->furniture_id);
-    $quantityToBuild = $request->quantity;
-    $colorToBuild = $request->furniture_color_id;
-
-    // 2. VALIDACIÓN DEL COLOR DEL MUEBLE
-    // Extraemos los IDs de los colores permitidos para este producto
-    $allowedColors = $furniture->product->colors->pluck('id')->toArray();
-    
-    if (!in_array($colorToBuild, $allowedColors)) {
-        return response()->json([
-            'message' => 'El color seleccionado no está asociado a este mueble.',
-            'allowed_colors' => $furniture->product->colors // Lo devolvemos para ayudar al frontend
-        ], 422); // Unprocessable Entity
-    }
-
-    // 3. VERIFICACIÓN DE STOCK DE MATERIALES
-    $shortages = []; 
-
-    foreach ($furniture->materials as $material) {
-        $totalNeeded = $material->pivot->quantity * $quantityToBuild;
-        $materialColorId = $material->pivot->color_id;
-
-        // Consultamos la vista de stock
-        $stockRecord = ProductStockView::where('productID', $material->product_id)
-            ->when($materialColorId, function ($query) use ($materialColorId) {
-                return $query->where('colorID', $materialColorId);
-            }, function ($query) {
-                return $query->whereNull('colorID');
-            })
-            ->first();
-
-        $currentStock = $stockRecord ? (float) $stockRecord->stock : 0;
-
-        if ($currentStock < $totalNeeded) {
-            $shortages[] = [
-                'material_name' => $material->product->name ?? 'Material Desconocido',
-                'color_id'      => $materialColorId,
-                'required'      => $totalNeeded,
-                'available'     => $currentStock,
-                'missing'       => $totalNeeded - $currentStock
-            ];
-        }
-    }
-
-    // Si hay faltantes, abortamos
-    if (!empty($shortages)) {
-        return response()->json([
-            'message' => 'Stock insuficiente para fabricar esta cantidad de muebles.',
-            'shortages' => $shortages
-        ], 400); 
-    }
-
-    // 4. EJECUCIÓN (Transacción)
-    DB::beginTransaction();
-
-    try {
-        $now = now();
-
-        // A. Sumar el mueble terminado al inventario (Obligatoriamente con su color)
-        ProductMovement::create([
-            'product_id' => $furniture->product_id,
-            'quantity' => $quantityToBuild, 
-            'color_id' => $colorToBuild, // Pasó la validación estricta
-            'movement_date' => $now,
-            'movementable_id' => $furniture->id,
-            'movementable_type' => Furniture::class,
+    {
+        // 1. Validar la petición base
+        $request->validate([
+            'furniture_id' => 'required|integer|exists:furnitures,id',
+            'quantity' => 'required|integer|min:1',
+            'furniture_color_id' => 'required|integer|exists:colors,id' // Estrictamente requerido
         ]);
 
-        // B. Descontar los materiales utilizados
-        foreach ($furniture->materials as $material) {
-            $totalUsed = $material->pivot->quantity * $quantityToBuild;
+        // Cargamos el mueble con sus materiales y los colores permitidos para su producto base
+        $furniture = Furniture::with(['materials.product', 'product.colors'])->find($request->furniture_id);
+        $quantityToBuild = $request->quantity;
+        $colorToBuild = $request->furniture_color_id;
 
+        // 2. VALIDACIÓN DEL COLOR DEL MUEBLE
+        // Extraemos los IDs de los colores permitidos para este producto
+        $allowedColors = $furniture->product->colors->pluck('id')->toArray();
+        
+        if (!in_array($colorToBuild, $allowedColors)) {
+            return response()->json([
+                'message' => 'El color seleccionado no está asociado a este mueble.',
+                'allowed_colors' => $furniture->product->colors // Lo devolvemos para ayudar al frontend
+            ], 422); // Unprocessable Entity
+        }
+
+        // 3. VERIFICACIÓN DE STOCK DE MATERIALES
+        $shortages = []; 
+
+        foreach ($furniture->materials as $material) {
+            $totalNeeded = $material->pivot->quantity * $quantityToBuild;
+            $materialColorId = $material->pivot->color_id;
+
+            // Consultamos la vista de stock
+            $stockRecord = ProductStockView::where('productID', $material->product_id)
+                ->when($materialColorId, function ($query) use ($materialColorId) {
+                    return $query->where('colorID', $materialColorId);
+                }, function ($query) {
+                    return $query->whereNull('colorID');
+                })
+                ->first();
+
+            $currentStock = $stockRecord ? (float) $stockRecord->stock : 0;
+
+            if ($currentStock < $totalNeeded) {
+                $shortages[] = [
+                    'material_name' => $material->product->name ?? 'Material Desconocido',
+                    'color_id'      => $materialColorId,
+                    'required'      => $totalNeeded,
+                    'available'     => $currentStock,
+                    'missing'       => $totalNeeded - $currentStock
+                ];
+            }
+        }
+
+        // Si hay faltantes, abortamos
+        if (!empty($shortages)) {
+            return response()->json([
+                'message' => 'Stock insuficiente para fabricar esta cantidad de muebles.',
+                'shortages' => $shortages
+            ], 400); 
+        }
+
+        // 4. EJECUCIÓN (Transacción)
+        DB::beginTransaction();
+
+        try {
+            $now = now();
+
+            // A. Sumar el mueble terminado al inventario (Obligatoriamente con su color)
             ProductMovement::create([
-                'product_id' => $material->product_id,
-                'quantity' => -$totalUsed,
-                'color_id' => $material->pivot->color_id,
+                'product_id' => $furniture->product_id,
+                'quantity' => $quantityToBuild, 
+                'color_id' => $colorToBuild, // Pasó la validación estricta
                 'movement_date' => $now,
                 'movementable_id' => $furniture->id,
                 'movementable_type' => Furniture::class,
             ]);
+
+            // B. Descontar los materiales utilizados
+            foreach ($furniture->materials as $material) {
+                $totalUsed = $material->pivot->quantity * $quantityToBuild;
+
+                ProductMovement::create([
+                    'product_id' => $material->product_id,
+                    'quantity' => -$totalUsed,
+                    'color_id' => $material->pivot->color_id,
+                    'movement_date' => $now,
+                    'movementable_id' => $furniture->id,
+                    'movementable_type' => Furniture::class,
+                ]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Fabricación registrada con éxito. Inventario actualizado.',
+                'manufactured_quantity' => $quantityToBuild
+            ], 200);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'message' => 'Ocurrió un error al procesar el inventario.',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        DB::commit();
-
-        return response()->json([
-            'message' => 'Fabricación registrada con éxito. Inventario actualizado.',
-            'manufactured_quantity' => $quantityToBuild
-        ], 200);
-
-    } catch (\Exception $e) {
-        DB::rollBack();
-
-        return response()->json([
-            'message' => 'Ocurrió un error al procesar el inventario.',
-            'error' => $e->getMessage()
-        ], 500);
     }
-}
 }

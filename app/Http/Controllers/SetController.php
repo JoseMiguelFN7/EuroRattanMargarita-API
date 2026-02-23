@@ -16,18 +16,31 @@ class SetController extends Controller
     public function index(Request $request)
     {
         $perPage = $request->input('per_page', 10);
+        $search  = $request->input('search'); // 1. Capturamos la búsqueda
 
-        // 1. CARGA DE RELACIONES
+        // 2. INICIAMOS EL QUERY BUILDER CON LA CARGA DE RELACIONES
         // Necesitamos 'materials.materialTypes' para distinguir Insumo vs Tapicería
-        $sets = Set::with([
+        $query = Set::with([
             'setType', 
             'product.images',
             'furnitures.materials.materialTypes', 
             'furnitures.labors',
             'furnitures.product.stocks'
-        ])->paginate($perPage);
+        ]);
 
-        // 2. TRANSFORMACIÓN
+        // 3. APLICAMOS EL FILTRO DE BÚSQUEDA
+        if ($search) {
+            // Filtramos a través de la relación product
+            $query->whereHas('product', function ($q) use ($search) {
+                $q->where('name', 'LIKE', "%{$search}%")
+                  ->orWhere('code', 'LIKE', "%{$search}%");
+            });
+        }
+
+        // 4. EJECUTAMOS LA PAGINACIÓN
+        $sets = $query->paginate($perPage);
+
+        // 5. TRANSFORMACIÓN
         $sets->through(function ($set) {
             
             // --- A. LLAMADO AL MODELO PARA CÁLCULOS ---
