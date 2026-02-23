@@ -302,18 +302,25 @@ class ProductController extends Controller
     }
 
     //Obtener producto por nombre
-    public function ProductSearchByName(Request $request, $search)
+    public function ProductSearchByName(Request $request) // Quitamos $search de aquí
     {
-        // 1. Configuración de Paginación
+        // 1. Configuración de parámetros
         $perPage = $request->input('per_page', 8);
+        $search = $request->input('q'); // Capturamos la variable 'q' que envía Axios
 
-        // 2. Query con Paginación
-        $products = Product::where('name', 'LIKE', '%'.$search.'%')
-            ->with(['material', 'furniture', 'set', 'colors', 'images'])
-            ->paginate($perPage);
+        // 2. Iniciamos el Query con las relaciones
+        $query = Product::with(['material', 'furniture', 'set', 'colors', 'images']);
+
+        // Aplicamos el filtro solo si viene algo en la búsqueda
+        if ($search) {
+            $query->where('name', 'LIKE', '%' . $search . '%');
+        }
+
+        // Ejecutamos la paginación
+        $products = $query->paginate($perPage);
 
         // 3. Transformación
-        $products = $products->through(function ($product) {
+        $products->through(function ($product) {
             
             if ($product->images && $product->images->isNotEmpty()) {
                 // Mapeamos las URLs completas

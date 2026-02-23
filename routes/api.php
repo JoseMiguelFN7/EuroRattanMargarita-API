@@ -15,7 +15,7 @@ Route::get('/products', [\App\Http\Controllers\ProductController::class, 'index'
 Route::get('/product/id/{id}', [\App\Http\Controllers\ProductController::class, 'show']); // Obtener un producto específico por id
 Route::get('/products/{quantity}', [\App\Http\Controllers\ProductController::class, 'rand']); // Obtener una cantidad de productos en orden aleatorio
 Route::get('/product/cod/{cod}', [\App\Http\Controllers\ProductController::class, 'showCod']); // Obtener un producto específico por Cod
-Route::get('/product/search/{search}', [\App\Http\Controllers\ProductController::class, 'ProductSearchByName']); // Obtener producto en base a busqueda por nombre
+Route::get('/product/search/', [\App\Http\Controllers\ProductController::class, 'ProductSearchByName']); // Obtener producto en base a busqueda por nombre
 
 // Rutas para el CRUD de stocks
 Route::get('/product/stock/{id}', [\App\Http\Controllers\ProductController::class, 'showStock']); // Obtener un stock específico

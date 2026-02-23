@@ -79,21 +79,34 @@ class SetController extends Controller
     public function indexSell(Request $request)
     {
         $perPage = $request->input('per_page', 10);
+        $setTypeIds = $request->input('set_type_id'); // 1. Capturamos el arreglo de IDs
 
-        // 1. CARGA DE RELACIONES
-        // Necesitamos 'materials.materialTypes' para distinguir Insumo vs Tapicería
-        $sets = Set::with([
+        // 2. INICIAMOS EL QUERY BUILDER (Solo productos a la venta)
+        $query = Set::whereHas('product', function ($q) {
+            $q->where('sell', true);
+        });
+
+        // 3. APLICAMOS EL FILTRO POR TIPO DE JUEGO
+        if (!empty($setTypeIds)) {
+            // Soportamos que el frontend envíe un arreglo o un string separado por comas
+            $typesArray = is_array($setTypeIds) 
+                ? $setTypeIds 
+                : explode(',', $setTypeIds);
+            
+            // Filtramos usando la columna de la base de datos
+            $query->whereIn('set_types_id', $typesArray); 
+        }
+
+        // 4. CARGA DE RELACIONES Y PAGINACIÓN
+        $sets = $query->with([
             'setType', 
             'product.images',
             'furnitures.materials.materialTypes', 
             'furnitures.labors',
             'furnitures.product.stocks'
-        ])->whereHas('product', function ($query) {
-            $query->where('sell', true);
-        })
-        ->paginate($perPage);
+        ])->paginate($perPage);
 
-        // 2. TRANSFORMACIÓN
+        // 5. TRANSFORMACIÓN (Se mantiene intacta)
         $sets->through(function ($set) {
             
             // --- A. LLAMADO AL MODELO PARA CÁLCULOS ---
@@ -123,7 +136,8 @@ class SetController extends Controller
             if ($set->setType) $set->setType->makeHidden(['created_at', 'updated_at']);
 
             // Ocultamos la lógica interna del Set
-            $set->makeHidden(['furnitures', 'product_id', 'set_types_id', 'created_at', 'updated_at']);
+            // Agregué 'set_type_id' por si acaso, para asegurar que se oculte sin importar si lo nombraste en singular o plural
+            $set->makeHidden(['furnitures', 'product_id', 'set_types_id', 'set_type_id', 'created_at', 'updated_at']);
 
             return $set;
         });

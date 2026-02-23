@@ -81,29 +81,46 @@ class FurnitureController extends Controller
     public function indexSell(Request $request)
     {
         $perPage = $request->input('per_page', 8);
+        $furnitureTypeIds = $request->input('furniture_type_id'); // 1. Capturamos el arreglo de IDs
 
-        $furnitures = Furniture::with([
+        // 2. INICIAMOS EL QUERY BUILDER (Solo productos a la venta)
+        $query = Furniture::whereHas('product', function ($q) {
+            $q->where('sell', true);
+        });
+
+        // 3. APLICAMOS EL FILTRO POR TIPO DE MUEBLE
+        if (!empty($furnitureTypeIds)) {
+            // Soportamos que el frontend envíe un arreglo o un string separado por comas
+            $typesArray = is_array($furnitureTypeIds) 
+                ? $furnitureTypeIds 
+                : explode(',', $furnitureTypeIds);
+            
+            // Como furniture_type_id es una columna directa en la tabla, usamos whereIn
+            $query->whereIn('furniture_type_id', $typesArray);
+        }
+
+        // 4. CARGA ANSIOSA Y PAGINACIÓN
+        $furnitures = $query->with([
             'furnitureType', 
             'product.images', 
             'product.stocks',
             'materials.materialTypes',
             'labors'
-        ])->whereHas('product', function ($query) {
-            $query->where('sell', true);
-        })
-        ->paginate($perPage);
+        ])->paginate($perPage);
 
-        // 2. TRANSFORMACIÓN
-        $furnitures = $furnitures->through(function ($furniture) {
+        // 5. TRANSFORMACIÓN (Se mantiene intacta)
+        $furnitures->through(function ($furniture) {
             
             $product = $furniture->product;
 
-            $product->images->each(function ($image) {
-                // 1. Generamos la URL completa
-                $image->url = asset('storage/' . $image->url);
-                // 2. Limpiamos la basura de cada objeto imagen
-                $image->makeHidden(['created_at', 'updated_at', 'product_id']);
-            });
+            if ($product && $product->images) {
+                $product->images->each(function ($image) {
+                    // 1. Generamos la URL completa
+                    $image->url = asset('storage/' . $image->url);
+                    // 2. Limpiamos la basura de cada objeto imagen
+                    $image->makeHidden(['created_at', 'updated_at', 'product_id']);
+                });
+            }
 
             // --- Precios ---
             $precios = $furniture->calcularPrecios();
@@ -111,12 +128,18 @@ class FurnitureController extends Controller
             $furniture->pvp_color = $precios['pvp_color'];
 
             // --- Stock ---
-            $product->stocks->makeHidden(['productID', 'productCode']);
+            if ($product && $product->stocks) {
+                $product->stocks->makeHidden(['productID', 'productCode']);
+            }
 
+            if ($product) {
+                $product->makeHidden(['created_at', 'updated_at']);
+            }
 
-            $product->makeHidden(['created_at', 'updated_at']);
-
-            $furniture->furnitureType->makeHidden(['created_at', 'updated_at']);
+            if ($furniture->furnitureType) {
+                $furniture->furnitureType->makeHidden(['created_at', 'updated_at']);
+            }
+            
             $furniture->makeHidden(['materials', 'labors', 'product_id', 'furniture_type_id', 'created_at', 'updated_at']);
 
             return $furniture;

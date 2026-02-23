@@ -78,14 +78,30 @@ class MaterialController extends Controller
     public function indexSell(Request $request)
     {
         $perPage = $request->input('per_page', 8);
+        $materialTypeIds = $request->input('material_type_id');
 
-        // 1. CONSULTA FILTRADA Y CARGA ANSIOSA
-        $materials = Material::query()
-            ->whereHas('product', function ($query) {
-                $query->where('sell', true);
-            })
-            // B. RELACIONES
-            ->with([
+        // 1. INICIAMOS EL QUERY BUILDER
+        $query = Material::query()
+            ->whereHas('product', function ($q) {
+                $q->where('sell', true);
+            });
+
+        // 2. APLICAMOS EL FILTRO DE TIPOS DE MATERIAL (Múltiples IDs)
+        if (!empty($materialTypeIds)) {
+            // Verificamos si es un arreglo. Si es un string separado por comas, lo convertimos a arreglo.
+            $typesArray = is_array($materialTypeIds) 
+                ? $materialTypeIds 
+                : explode(',', $materialTypeIds);
+            
+            // Filtramos los materiales que tengan AL MENOS UNO de los tipos enviados
+            $query->whereHas('materialTypes', function ($q) use ($typesArray) {
+                // Especificamos la tabla material_types.id para evitar ambigüedades en la consulta SQL
+                $q->whereIn('material_types.id', $typesArray);
+            });
+        }
+
+        // 3. CARGA ANSIOSA Y PAGINACIÓN
+        $materials = $query->with([
                 'materialTypes', 
                 'unit', 
                 'product.images', 
@@ -93,8 +109,7 @@ class MaterialController extends Controller
             ])
             ->paginate($perPage);
 
-        // 2. LIMPIEZA DE DATOS (Transformación)
-        // Usamos 'through' porque es un Paginator, no una Collection
+        // 4. LIMPIEZA DE DATOS (Transformación)
         $materials->through(function ($material) {
             
             // --- Nivel Material ---
