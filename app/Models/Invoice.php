@@ -19,7 +19,8 @@ class Invoice extends Model
         'tax_amount',
         'total_amount',
         'pdf_url',
-        'emitted_at'
+        'emitted_at',
+        'igtf_amount'
     ];
 
     protected $casts = [
@@ -29,6 +30,7 @@ class Invoice extends Model
         'tax_percentage' => 'decimal:2',
         'tax_amount' => 'decimal:2',
         'total_amount' => 'decimal:2',
+        'igtf_amount' => 'decimal:2',
     ];
 
     public function order()

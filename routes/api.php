@@ -158,6 +158,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Rutas para el CRUD de Ordenes
     Route::get('/orders', [\App\Http\Controllers\OrderController::class, 'index']); // Obtener todas las ordenes
     Route::get('/orders/auth', [\App\Http\Controllers\OrderController::class, 'myOrders']); // Obtener todas las ordenes del usuario autenticado
+    Route::get('/order/auth/code/{code}', [\App\Http\Controllers\OrderController::class, 'showMyOrderByCode']); // Obtener una orden por codigo validando que sea del usuario autenticado
+    Route::get('/order/code/{code}', [\App\Http\Controllers\OrderController::class, 'showByCode']); // Obtener una orden por codigo
     Route::post('/order/cancel/{id}', [\App\Http\Controllers\OrderController::class, 'cancel']); // Cancelar orden
     Route::get('/order/{id}', [\App\Http\Controllers\OrderController::class, 'show']); // Obtener una orden específica
     Route::post('/order', [\App\Http\Controllers\OrderController::class, 'store']); // Crear orden

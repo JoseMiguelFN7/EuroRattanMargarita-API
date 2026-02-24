@@ -12,7 +12,12 @@ class Order extends Model
         'status',
         'exchange_rate',
         'notes',
-        'code'
+        'code',
+        'igtf_amount'
+    ];
+
+    protected $casts = [
+        'igtf_amount' => 'decimal:2',
     ];
 
     protected static function booted()

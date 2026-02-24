@@ -6,6 +6,7 @@ use App\Models\Order;
 use App\Models\Payment;
 use App\Models\ProductMovement;
 use App\Models\Product;
+use App\Models\PaymentMethod;
 use Illuminate\Http\Request;
 use App\Http\Controllers\ProductMovementController;
 use Illuminate\Support\Facades\Validator;
@@ -37,30 +38,26 @@ class OrderController extends Controller
         $orders->through(function ($order) {
             
             // CÁLCULO DEL TOTAL AL VUELO
-            // Sumamos (Cantidad * Precio) de cada producto asociado
-            $totalCalculated = $order->products->sum(function ($product) {
-                $subtotal = $product->pivot->quantity * $product->pivot->price;
+            $subtotalCalculated = $order->products->sum(function ($product) {
+                $base = $product->pivot->quantity * $product->pivot->price;
+                $percent = $product->pivot->discount ?? 0;
                 
-                // Si manejas descuentos como porcentaje (ej: 10%), descomenta esto:
-                // $discountAmount = $subtotal * ($product->pivot->discount / 100);
-                // return $subtotal - $discountAmount;
-
-                // Si manejas descuentos como monto fijo o es 0:
-                return $subtotal; 
+                return $base * (1 - ($percent / 100));
             });
 
             return [
                 'id'            => $order->id,
                 'code'          => $order->code,
                 'status'        => $order->status,
-                'created_at'    => $order->created_at->toDateTimeString(), // 2026-02-18 23:41:05
+                'created_at'    => $order->created_at->toDateTimeString(),
                 'exchange_rate' => $order->exchange_rate,
                 'notes'         => $order->notes,
                 
-                // Campo calculado automáticamente
-                'total_usd'     => round($totalCalculated, 2),
+                // Nuevos campos
+                'subtotal_usd'  => round($subtotalCalculated, 2),
+                'igtf_amount'   => (float) $order->igtf_amount,
+                'total_usd'     => round($subtotalCalculated + $order->igtf_amount, 2),
 
-                // Solo mandamos el usuario, los productos se eliminaron de la respuesta
                 'user' => $order->user,
             ];
         });
@@ -79,23 +76,25 @@ class OrderController extends Controller
             ->paginate($request->input('per_page', 10)) 
             ->through(function ($order) {
                 
-                // Calculamos el total en USD
-                $totalUsd = $order->products->sum(function ($product) {
-                    $price = $product->pivot->price;
-                    $quantity = $product->pivot->quantity;
-                    $discount = $product->pivot->discount ?? 0;
+                // Calculamos el subtotal en USD
+                $subtotalCalculated = $order->products->sum(function ($product) {
+                    $base = $product->pivot->quantity * $product->pivot->price;
+                    $percent = $product->pivot->discount ?? 0;
                     
-                    return ($price * $quantity) - $discount; 
+                    return $base * (1 - ($percent / 100));
                 });
 
                 return [
-                    'id' => $order->id,
-                    'code' => $order->code,
-                    'status' => $order->status,
-                    'created_at' => $order->created_at?->format('Y-m-d H:i:s'),
+                    'id'            => $order->id,
+                    'code'          => $order->code,
+                    'status'        => $order->status,
+                    'created_at'    => $order->created_at?->format('Y-m-d H:i:s'),
                     'exchange_rate' => $order->exchange_rate,
-                    'notes' => $order->notes,
-                    'total_usd' => (float) round($totalUsd, 2),
+                    'notes'         => $order->notes,
+                    
+                    'subtotal_usd'  => round($subtotalCalculated, 2),
+                    'igtf_amount'   => (float) $order->igtf_amount,
+                    'total_usd'     => round($subtotalCalculated + $order->igtf_amount, 2),
                 ];
             });
 
@@ -120,15 +119,25 @@ class OrderController extends Controller
             return response()->json(['message' => 'Orden no encontrada'], 404);
         }
 
-        // 3. Formateo y limpieza de la respuesta
+        $subtotalCalculated = $order->products->sum(function ($product) {
+            $base = $product->pivot->quantity * $product->pivot->price;
+            $percent = $product->pivot->discount ?? 0;
+            
+            return $base * (1 - ($percent / 100));
+        });
+
         $cleanOrder = [
-            // Datos generales de la Orden
             'id'            => $order->id,
             'code'          => $order->code,
             'status'        => $order->status,
             'created_at'    => $order->created_at->toDateTimeString(),
             'exchange_rate' => $order->exchange_rate,
             'notes'         => $order->notes,
+
+            // Métricas financieras
+            'subtotal_usd'  => round($subtotalCalculated, 2),
+            'igtf_amount'   => (float) $order->igtf_amount,
+            'total_usd'     => round($subtotalCalculated + $order->igtf_amount, 2),
 
             // Datos del Cliente
             'user' => [
@@ -173,10 +182,180 @@ class OrderController extends Controller
         return response()->json($cleanOrder);
     }
 
+    public function showByCode($code)
+    {
+        // 1. Buscamos la orden con todas sus relaciones necesarias por su código
+        $order = Order::with([
+            'user:id,name,email,cellphone',
+            'products',
+            'payments' => function ($query) {
+                $query->latest(); 
+            },
+            'payments.paymentMethod' 
+        ])->where('code', $code)->first();
+
+        // 2. Validación por si no existe
+        if (!$order) {
+            return response()->json(['message' => 'Orden no encontrada'], 404);
+        }
+
+        // 3. Cálculos
+        $subtotalCalculated = $order->products->sum(function ($product) {
+            $base = $product->pivot->quantity * $product->pivot->price;
+            $percent = $product->pivot->discount ?? 0;
+            
+            return $base * (1 - ($percent / 100));
+        });
+
+        // 4. Formateo y limpieza de la respuesta
+        $cleanOrder = [
+            'id'            => $order->id,
+            'code'          => $order->code,
+            'status'        => $order->status,
+            'created_at'    => $order->created_at->toDateTimeString(),
+            'exchange_rate' => $order->exchange_rate,
+            'notes'         => $order->notes,
+
+            // Métricas financieras
+            'subtotal_usd'  => round($subtotalCalculated, 2),
+            'igtf_amount'   => (float) $order->igtf_amount,
+            'total_usd'     => round($subtotalCalculated + $order->igtf_amount, 2),
+
+            // Datos del Cliente
+            'user' => [
+                'name'      => $order->user->name,
+                'email'     => $order->user->email,
+                'cellphone' => $order->user->cellphone ?? 'N/A',
+            ],
+
+            // Lista de Productos (Aplanando la tabla pivote)
+            'products' => $order->products->map(function ($product) {
+                return [
+                    'id'         => $product->id,
+                    'name'       => $product->name,
+                    'quantity'   => $product->pivot->quantity,
+                    'price'      => $product->pivot->price,
+                    'discount'   => $product->pivot->discount,
+                    'variant_id' => $product->pivot->variant_id,
+                    'subtotal'   => round($product->pivot->quantity * $product->pivot->price, 2),
+                ];
+            }),
+
+            // Datos del Pago
+            'payments' => $order->payments->map(function ($payment) {
+                return [
+                    'id'               => $payment->id,
+                    'status'           => $payment->status,
+                    'amount'           => $payment->amount,
+                    'reference_number' => $payment->reference_number,
+                    
+                    // Generamos la URL completa para que el frontend la lea directo
+                    'proof_image'      => $payment->proof_image ? asset('storage/' . $payment->proof_image) : null,
+                    
+                    // Datos del Método de Pago (Ej: Zelle, Banesco)
+                    'method' => $payment->paymentMethod ? [
+                        'name'  => $payment->paymentMethod->name,
+                        'image' => $payment->paymentMethod->image ? asset('storage/' . $payment->paymentMethod->image) : null,
+                    ] : null,
+                ];
+            }),
+        ];
+
+        return response()->json($cleanOrder);
+    }
+
+    public function showMyOrderByCode($code)
+    {
+        // 1. Buscamos la orden
+        $order = Order::with([
+            'user:id,name,email,cellphone',
+            'products',
+            'payments' => function ($query) {
+                $query->latest(); 
+            },
+            'payments.paymentMethod' 
+        ])->where('code', $code)->first();
+
+        // 2. Validación por si no existe
+        if (!$order) {
+            return response()->json(['message' => 'Orden no encontrada'], 404);
+        }
+
+        // 3. VERIFICACIÓN DE SEGURIDAD
+        // Comparamos el ID del dueño de la orden con el ID del usuario logueado en el token
+        if ($order->user_id !== auth('sanctum')->id()) {
+            return response()->json([
+                'message' => 'Acceso denegado. Esta orden no pertenece a tu cuenta.'
+            ], 403);
+        }
+
+        // 4. Cálculos
+        $subtotalCalculated = $order->products->sum(function ($product) {
+            $base = $product->pivot->quantity * $product->pivot->price;
+            $percent = $product->pivot->discount ?? 0;
+            
+            return $base * (1 - ($percent / 100));
+        });
+
+        // 5. Formateo y limpieza de la respuesta
+        $cleanOrder = [
+            'id'            => $order->id,
+            'code'          => $order->code,
+            'status'        => $order->status,
+            'created_at'    => $order->created_at->toDateTimeString(),
+            'exchange_rate' => $order->exchange_rate,
+            'notes'         => $order->notes,
+
+            // Métricas financieras
+            'subtotal_usd'  => round($subtotalCalculated, 2),
+            'igtf_amount'   => (float) $order->igtf_amount,
+            'total_usd'     => round($subtotalCalculated + $order->igtf_amount, 2),
+
+            // Datos del Cliente
+            'user' => [
+                'name'      => $order->user->name,
+                'email'     => $order->user->email,
+                'cellphone' => $order->user->cellphone ?? 'N/A',
+            ],
+
+            // Lista de Productos (Aplanando la tabla pivote)
+            'products' => $order->products->map(function ($product) {
+                return [
+                    'id'         => $product->id,
+                    'name'       => $product->name,
+                    'quantity'   => $product->pivot->quantity,
+                    'price'      => $product->pivot->price,
+                    'discount'   => $product->pivot->discount,
+                    'variant_id' => $product->pivot->variant_id,
+                    'subtotal'   => round($product->pivot->quantity * $product->pivot->price, 2),
+                ];
+            }),
+
+            // Datos del Pago
+            'payments' => $order->payments->map(function ($payment) {
+                return [
+                    'id'               => $payment->id,
+                    'status'           => $payment->status,
+                    'amount'           => $payment->amount,
+                    'reference_number' => $payment->reference_number,
+                    
+                    'proof_image'      => $payment->proof_image ? asset('storage/' . $payment->proof_image) : null,
+                    
+                    'method' => $payment->paymentMethod ? [
+                        'name'  => $payment->paymentMethod->name,
+                        'image' => $payment->paymentMethod->image ? asset('storage/' . $payment->paymentMethod->image) : null,
+                    ] : null,
+                ];
+            }),
+        ];
+
+        return response()->json($cleanOrder);
+    }
+
     //Crear Orden
     public function store(Request $request)
     {
-        // 1. VALIDACIÓN
+        // 1. VALIDACIÓN (Se mantiene igual)
         $validator = Validator::make($request->all(), [
             'user_id'       => 'required|integer|exists:users,id',
             'exchange_rate' => 'required|numeric|min:0',
@@ -196,15 +375,32 @@ class OrderController extends Controller
             'payment_proof'       => 'nullable|image|mimes:jpeg,png,jpg|max:2048'
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+        if ($validator->fails()) return response()->json(['errors' => $validator->errors()], 422);
 
         DB::beginTransaction();
         $uploadedPath = null;
 
         try {
-            // 2. CREAR LA ORDEN
+            // 2. CÁLCULO DEL SUBTOTAL E IGTF ANTES DE CREAR LA ORDEN
+            $subtotal = 0;
+            foreach ($request->products as $item) {
+                $lineTotal = $item['quantity'] * $item['price'];
+                $discountPercent = $item['discount'] ?? 0;
+                
+                // Restamos el porcentaje al total de la línea
+                $subtotal += $lineTotal * (1 - ($discountPercent / 100));
+            }
+
+            $igtfAmount = 0;
+            if ($request->has('payment_method_id')) {
+                $paymentMethod = PaymentMethod::find($request->payment_method_id);
+                if ($paymentMethod && $paymentMethod->applies_igtf) {
+                    // El IGTF se calcula sobre el precio neto (ya con descuento aplicado)
+                    $igtfAmount = round($subtotal * 0.03, 2);
+                }
+            }
+
+            // 3. CREAR LA ORDEN (Ahora guardamos el igtf_amount)
             $initialStatus = $request->has('payment_amount') ? 'verifying_payment' : 'pending_payment';
 
             $order = Order::create([
@@ -212,20 +408,19 @@ class OrderController extends Controller
                 'exchange_rate' => $request->exchange_rate,
                 'notes'         => $request->notes,
                 'status'        => $initialStatus,
+                'igtf_amount'   => $igtfAmount, // <-- NUEVO
             ]);
 
             $now = $order->created_at;
 
-            // OPTIMIZACIÓN: Cargamos todos los productos involucrados de una vez para evitar consultas N+1
             $productIds = collect($request->products)->pluck('id');
             $productsData = Product::with('set.furnitures')->whereIn('id', $productIds)->get()->keyBy('id');
 
-            // 3. RECORRER PRODUCTOS (Pivot + Movimiento Manual)
+            // 4. RECORRER PRODUCTOS (Pivot + Movimientos)
             foreach ($request->products as $item) {
                 $variantId = $item['variant_id'] ?? null;
                 $productModel = $productsData[$item['id']];
 
-                // A. Insertar en tabla intermedia (La factura sigue mostrando el Juego o Producto tal cual)
                 $order->products()->attach($item['id'], [
                     'quantity'   => $item['quantity'],
                     'price'      => $item['price'],
@@ -233,17 +428,15 @@ class OrderController extends Controller
                     'variant_id' => $variantId,
                 ]);
 
-                // B. Crear Movimiento(s) de Inventario
+                // Movimientos de inventario (Se mantiene exactamente igual...)
                 if ($productModel->set && $productModel->set->furnitures) {
-                    // Es un Juego: Iteramos sobre los muebles que lo componen
                     foreach ($productModel->set->furnitures as $furniture) {
-                        // Calculamos la cantidad real a descontar: (Cantidad de juegos) * (Cantidad de este mueble por juego)
                         $qtyPerSet = $furniture->pivot->quantity;
                         $totalToDeduct = -abs($item['quantity'] * $qtyPerSet);
 
                         ProductMovement::create([
-                            'product_id'        => $furniture->product_id, // Usamos el product_id del mueble individual
-                            'color_id'          => $variantId, // Aplicamos el color del juego a los muebles
+                            'product_id'        => $furniture->product_id,
+                            'color_id'          => $variantId,
                             'quantity'          => $totalToDeduct,
                             'movement_date'     => $now,
                             'movementable_id'   => $order->id,
@@ -251,7 +444,6 @@ class OrderController extends Controller
                         ]);
                     }
                 } else {
-                    // Es un producto normal (Mueble individual, Material, etc.)
                     ProductMovement::create([
                         'product_id'        => $item['id'],
                         'color_id'          => $variantId,
@@ -263,7 +455,7 @@ class OrderController extends Controller
                 }
             }
 
-            // 4. PROCESAR PAGO
+            // 5. PROCESAR PAGO
             if ($request->has('payment_amount')) {
                 if ($request->hasFile('payment_proof')) {
                     $uploadedPath = $request->file('payment_proof')->store('payments', 'public');
@@ -287,15 +479,12 @@ class OrderController extends Controller
 
         } catch (\Exception $e) {
             DB::rollback();
-
             if ($uploadedPath && Storage::disk('public')->exists($uploadedPath)) {
                 Storage::disk('public')->delete($uploadedPath);
             }
-
             return response()->json([
                 'message' => 'Error al crear la orden.',
-                'error'   => $e->getMessage(),
-                'trace'   => $e->getTraceAsString()
+                'error'   => $e->getMessage()
             ], 500);
         }
     }

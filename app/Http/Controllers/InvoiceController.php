@@ -11,10 +11,10 @@ class InvoiceController extends Controller
     {
         $perPage = $request->input('per_page', 10);
 
-        // 1. Usamos with('order') para cargar la relación y evitar el problema N+1
+        // 1. Carga ansiosa para evitar N+1
         $query = Invoice::with('order');
 
-        // 2. Buscador actualizado
+        // 2. Buscador
         if ($request->filled('search')) {
             $searchTerm = $request->input('search');
             
@@ -23,9 +23,7 @@ class InvoiceController extends Controller
                   ->orWhere('control_number', 'like', "%{$searchTerm}%")
                   ->orWhere('client_name', 'like', "%{$searchTerm}%")
                   ->orWhere('client_document', 'like', "%{$searchTerm}%")
-                  // Buscamos también dentro de la relación de la orden
                   ->orWhereHas('order', function ($orderQuery) use ($searchTerm) {
-                      // Nota: Cambia 'code' si tu columna en la tabla orders se llama distinto (ej. 'reference' o 'tracking_code')
                       $orderQuery->where('code', 'like', "%{$searchTerm}%"); 
                   });
             });
@@ -41,8 +39,7 @@ class InvoiceController extends Controller
                 ? asset('storage/' . $invoice->pdf_url) 
                 : null;
                 
-            // Inyectamos el código de la orden directamente en el primer nivel del JSON
-            // (Cambia 'code' por el nombre real del campo en tu modelo Order)
+            // Inyectamos datos de la orden
             if ($invoice->order) {
                 $invoice->order_code = $invoice->order->code;
                 $invoice->order_exchange_rate = $invoice->order->exchange_rate;
@@ -51,8 +48,15 @@ class InvoiceController extends Controller
                 $invoice->order_exchange_rate = null;
             }
             
-            // Opcional: Ocultamos el objeto completo 'order' para que el JSON no sea tan pesado,
-            // ya que el frontend normalmente solo necesita el código.
+            // Forzamos el casteo a float para que el frontend no reciba strings 
+            // y pueda hacer sumas matemáticas si lo necesita en el dashboard
+            $invoice->exempt_amount = (float) $invoice->exempt_amount;
+            $invoice->tax_base_amount = (float) $invoice->tax_base_amount;
+            $invoice->tax_amount = (float) $invoice->tax_amount; // Siempre será 0 por el Puerto Libre
+            $invoice->igtf_amount = (float) $invoice->igtf_amount; // NUESTRO NUEVO CAMPO
+            $invoice->total_amount = (float) $invoice->total_amount;
+            
+            // Ocultamos el objeto completo 'order'
             $invoice->makeHidden('order');
 
             return $invoice;

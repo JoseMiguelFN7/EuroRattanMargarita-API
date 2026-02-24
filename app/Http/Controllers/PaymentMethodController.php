@@ -47,12 +47,14 @@ class PaymentMethodController extends Controller
         $request->merge([
             'requires_proof' => filter_var($request->input('requires_proof'), FILTER_VALIDATE_BOOLEAN),
             'is_active' => filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN),
+            'applies_igtf' => filter_var($request->input('applies_igtf'), FILTER_VALIDATE_BOOLEAN),
         ]);
 
         // 2. Validar (Ahora validamos currency_id)
         $validator = Validator::make($request->all(), [
             'name'           => 'required|string|max:255',
             'description'    => 'nullable|string',
+            'applies_igtf'   => 'boolean',
             
             // CAMBIO CLAVE: Validamos que la moneda exista
             'currency_id'    => 'required|exists:currencies,id',
@@ -104,6 +106,7 @@ class PaymentMethodController extends Controller
         $request->merge([
             'requires_proof' => filter_var($request->input('requires_proof'), FILTER_VALIDATE_BOOLEAN),
             'is_active'      => filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN),
+            'applies_igtf'   => filter_var($request->input('applies_igtf'), FILTER_VALIDATE_BOOLEAN),
         ]);
 
         // 3. VALIDAR
@@ -113,6 +116,7 @@ class PaymentMethodController extends Controller
             'currency_id'    => 'required|exists:currencies,id',
             'requires_proof' => 'boolean',
             'is_active'      => 'boolean',
+            'applies_igtf'   => 'boolean',
             'image'          => 'nullable|image|mimes:jpeg,png,jpg,svg|max:2048',
             
             'bank_details'               => 'nullable|array',
@@ -127,7 +131,7 @@ class PaymentMethodController extends Controller
 
         // 4. PREPARAR DATOS PARA GUARDAR
         $data = $validator->validated();
-        $data['slug'] = \Illuminate\Support\Str::slug($data['name']);
+        $data['slug'] = Str::slug($data['name']);
 
         // 5. LÓGICA DE IMAGEN (El arreglo del bug)
         if ($request->hasFile('image')) {

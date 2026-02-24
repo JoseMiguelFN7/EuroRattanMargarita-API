@@ -14,13 +14,15 @@ class PaymentMethod extends Model
         'currency_id',
         'requires_proof',
         'is_active',
-        'image'
+        'image',
+        'applies_igtf'
     ];
 
     protected $casts = [
-        'bank_details' => 'array',    // Se convierte automágicamente a array al leer
+        'bank_details' => 'array',
         'requires_proof' => 'boolean',
         'is_active' => 'boolean',
+        'applies_igtf' => 'boolean',
     ];
 
     public function currency()
