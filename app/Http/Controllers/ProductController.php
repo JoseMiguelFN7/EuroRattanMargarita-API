@@ -495,4 +495,60 @@ class ProductController extends Controller
 
         return response()->json($response);
     }
+
+    /**
+     * Obtener listado de productos ajustables (Solo Materiales y Muebles) sin paginación
+     */
+    public function getAdjustableProducts()
+    {
+        // 1. Consulta optimizada
+        // Filtramos para que traiga solo si tiene un material o un mueble asociado
+        $products = Product::where(function ($query) {
+                $query->has('material')->orHas('furniture');
+            })
+            // Solo cargamos las relaciones que necesitamos para la vista
+            ->with(['colors', 'material.unit', 'furniture']) 
+            ->get();
+
+        // 2. Transformación estricta para el Frontend
+        $cleanProducts = $products->map(function ($prod) {
+            
+            // Estructura base del Product interface
+            $data = [
+                'id'     => $prod->id,
+                'name'   => $prod->name,
+                'code'   => $prod->code,
+                // Extraemos los colores limpios
+                'colors' => $prod->colors->map(function ($color) {
+                    return [
+                        'id'   => $color->id,
+                        'name' => $color->name,
+                        'hex'  => $color->hex,
+                    ];
+                }),
+            ];
+
+            // Si es un material, incluimos la unidad
+            if ($prod->material) {
+                $data['material'] = [
+                    'id'   => $prod->material->id,
+                    'unit' => $prod->material->unit ? [
+                        'id'   => $prod->material->unit->id,
+                        'name' => $prod->material->unit->name,
+                    ] : null,
+                ];
+            }
+
+            // Si es un mueble, lo indicamos para que el frontend lo reconozca
+            if ($prod->furniture) {
+                $data['furniture'] = [
+                    'id' => $prod->furniture->id,
+                ];
+            }
+
+            return $data;
+        });
+
+        return response()->json($cleanProducts);
+    }
 }

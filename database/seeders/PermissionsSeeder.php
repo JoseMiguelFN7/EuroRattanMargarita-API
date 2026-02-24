@@ -24,8 +24,12 @@ class PermissionsSeeder extends Seeder
 
             // 2. PRODUCTOS
             'Productos' => [
-                ['slug' => 'products.buy',              'name' => 'Comprar Productos'],
-                ['slug' => 'products.movements.view',   'name' => 'Ver Movimientos de Productos'],
+                ['slug' => 'products.buy',                          'name' => 'Comprar Productos'],
+                ['slug' => 'products.movements.view',               'name' => 'Ver Movimientos de Productos'],
+                ['slug' => 'products.inventory_adjustments.view',   'name' => 'Ver Ajustes de Inventario'],
+                ['slug' => 'products.inventory_adjustments.create',   'name' => 'Crear Ajustes de Inventario'],
+                ['slug' => 'products.inventory_adjustments.edit',   'name' => 'Editar Ajustes de Inventario'],
+                ['slug' => 'products.inventory_adjustments.delete',   'name' => 'Eliminar Ajustes de Inventario'],
             ],
 
             // 3. MUEBLES

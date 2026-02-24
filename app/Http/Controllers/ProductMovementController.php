@@ -72,9 +72,11 @@ class ProductMovementController extends Controller
             'color',
             'movementable' => function ($morphTo) {
                 $morphTo->morphWith([
-                    \App\Models\Purchase::class  => ['supplier'],
-                    \App\Models\Order::class     => ['user'],
-                    \App\Models\Furniture::class => ['product'],
+                    \App\Models\Purchase::class            => ['supplier'],
+                    \App\Models\Order::class               => ['user'],
+                    \App\Models\Furniture::class           => ['product'],
+                    // --- NUEVO TIPO POLIMÓRFICO ---
+                    \App\Models\InventoryAdjustment::class => ['user'], 
                 ]);
             }
         ])
@@ -116,6 +118,18 @@ class ProductMovementController extends Controller
                     $originType    = 'Fabricación';
                     $reason        = $movement->quantity > 0 ? 'Ingreso por fabricación' : 'Material usado en fabricación';
                     $details       = 'Mueble: ' . ($movement->movementable->product->name ?? 'Desconocido');
+                    $referenceId   = $movement->movementable->id ?? null;
+                    break;
+
+                // --- NUEVO CASO PARA AJUSTES DE INVENTARIO ---
+                case \App\Models\InventoryAdjustment::class:
+                    $originType    = 'Ajuste';
+                    // Tomamos el concepto que escribió el almacenista
+                    $reason        = $movement->movementable->concept ?? 'Ajuste de inventario'; 
+                    // Indicamos si fue sobrante (suma) o merma (resta)
+                    $details       = $movement->quantity > 0 ? 'Sobrante (Ingreso)' : 'Merma / Pérdida (Salida)';
+                    // Traemos el nombre del usuario logueado que procesó el ajuste
+                    $user          = $movement->movementable->user->name ?? 'Desconocido';
                     $referenceId   = $movement->movementable->id ?? null;
                     break;
             }

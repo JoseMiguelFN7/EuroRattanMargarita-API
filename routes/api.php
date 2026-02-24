@@ -94,6 +94,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     //Rutas para el CRUD de Productos
     Route::post('/product/codes/', [\App\Http\Controllers\ProductController::class, 'showByCodeArray']); // Obtener productos por arreglo de Codigos
+    Route::get('/product/inventoryAdjustables/', [\App\Http\Controllers\ProductController::class, 'getAdjustableProducts']); // Obtener productos cuyo inventario se puede ajustar (materiales y muebles)
 
     //Rutas para el CRUD de materiales
     Route::get('/materials/noPage/all', [\App\Http\Controllers\MaterialController::class, 'listMaterialsPurchase']); //Obtener todos los materiales sin paginación (para compras)
@@ -165,6 +166,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/order', [\App\Http\Controllers\OrderController::class, 'store']); // Crear orden
     Route::delete('/order/{id}', [\App\Http\Controllers\OrderController::class, 'destroy']); // Eliminar una orden
 
+    // Rutas para el CRUD de Ajustes de Inventario
+    Route::get('/inventoryAdjustments', [\App\Http\Controllers\InventoryAdjustmentController::class, 'index']); // Obtener todos los ajustes con paginacion
+    Route::get('/inventoryAdjustment/{id}', [\App\Http\Controllers\InventoryAdjustmentController::class, 'show']); // Obtener un ajuste específic
+    Route::post('/inventoryAdjustment', [\App\Http\Controllers\InventoryAdjustmentController::class, 'store']); // Crear un ajuste
+    Route::post('/inventoryAdjustment/{id}', [\App\Http\Controllers\InventoryAdjustmentController::class, 'update']); // Actualizar un ajuste
+    Route::delete('/inventoryAdjustment/{id}', [\App\Http\Controllers\InventoryAdjustmentController::class, 'destroy']); // Eliminar un ajuste
+    
     // Rutas para el CRUD de Facturas
     Route::get('/invoices', [\App\Http\Controllers\InvoiceController::class, 'index']); // Obtener todos los invoices
     
