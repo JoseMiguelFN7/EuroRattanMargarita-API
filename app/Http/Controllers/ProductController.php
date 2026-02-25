@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Product;
+use App\Models\Material;
+use App\Models\Furniture;
+use App\Models\Set;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use App\Models\Color;
 
 class ProductController extends Controller
@@ -550,5 +552,24 @@ class ProductController extends Controller
         });
 
         return response()->json($cleanProducts);
+    }
+
+    /**
+     * Obtener el conteo total de productos y sus subcategorías
+     */
+    public function getInventoryCounts()
+    {
+        // Ejecutamos consultas COUNT directas a la base de datos por rendimiento
+        $totalProducts   = Product::count();
+        $totalMaterials  = Material::count();
+        $totalFurnitures = Furniture::count();
+        $totalSets       = Set::count();
+
+        return response()->json([
+            'products'   => $totalProducts,
+            'materials'  => $totalMaterials,
+            'furnitures' => $totalFurnitures,
+            'sets'       => $totalSets,
+        ]);
     }
 }

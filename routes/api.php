@@ -95,6 +95,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     //Rutas para el CRUD de Productos
     Route::post('/product/codes/', [\App\Http\Controllers\ProductController::class, 'showByCodeArray']); // Obtener productos por arreglo de Codigos
     Route::get('/product/inventoryAdjustables/', [\App\Http\Controllers\ProductController::class, 'getAdjustableProducts']); // Obtener productos cuyo inventario se puede ajustar (materiales y muebles)
+    Route::get('/products/stats/counts', [\App\Http\Controllers\ProductController::class, 'getInventoryCounts']);
 
     //Rutas para el CRUD de materiales
     Route::get('/materials/noPage/all', [\App\Http\Controllers\MaterialController::class, 'listMaterialsPurchase']); //Obtener todos los materiales sin paginación (para compras)
@@ -217,4 +218,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/banner/{id}', [\App\Http\Controllers\BannerImageController::class, 'show']); // Obtener Banner
     Route::post('/banner/{id}', [\App\Http\Controllers\BannerImageController::class, 'update']); // Actualizar Banner
     Route::delete('/banner/{id}', [\App\Http\Controllers\BannerImageController::class, 'destroy']); // Eliminar Banner
+
+    // Rutas para datos del dashboard
+    Route::get('/dashboard/chart', [\App\Http\Controllers\DashboardController::class, 'getChartData']);
 });
