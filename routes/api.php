@@ -95,7 +95,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     //Rutas para el CRUD de Productos
     Route::post('/product/codes/', [\App\Http\Controllers\ProductController::class, 'showByCodeArray']); // Obtener productos por arreglo de Codigos
     Route::get('/product/inventoryAdjustables/', [\App\Http\Controllers\ProductController::class, 'getAdjustableProducts']); // Obtener productos cuyo inventario se puede ajustar (materiales y muebles)
-    Route::get('/products/stats/counts', [\App\Http\Controllers\ProductController::class, 'getInventoryCounts']);
+    Route::get('/products/stats/counts', [\App\Http\Controllers\ProductController::class, 'getProductCounts']);
 
     //Rutas para el CRUD de materiales
     Route::get('/materials/noPage/all', [\App\Http\Controllers\MaterialController::class, 'listMaterialsPurchase']); //Obtener todos los materiales sin paginación (para compras)
@@ -221,4 +221,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Rutas para datos del dashboard
     Route::get('/dashboard/chart', [\App\Http\Controllers\DashboardController::class, 'getChartData']);
+
+    //Rutas para las tasas de cambio
+    Route::get('/currencyExchange/ves/history', [\App\Http\Controllers\CurrencyExchangeController::class, 'getHistoryTable']);
+    Route::get('/currencyExchange/ves/chart', [\App\Http\Controllers\CurrencyExchangeController::class, 'getHistoryChart']);
 });

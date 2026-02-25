@@ -123,9 +123,9 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'payments.verify', 'name' => 'Verificar Pagos'],
             ],
 
-            // 13. FACTURAS
-            'Facturas' => [
-                ['slug' => 'invoices.view',   'name' => 'Ver Facturas'],
+            // 13. COMPROBANTES DIGITALES
+            'Comprobantes' => [
+                ['slug' => 'invoices.view',   'name' => 'Ver Comprobantes Digitales'],
             ],
 
             // 14. CONFIGURACIONES
@@ -134,6 +134,11 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'banner_images.create', 'name' => 'Crear Imágenes del Banner'],
                 ['slug' => 'banner_images.edit',   'name' => 'Editar Imágenes del Banner'],
                 ['slug' => 'banner_images.delete', 'name' => 'Eliminar Imágenes del Banner'],
+            ],
+
+            // 15. TASAS DE CAMBIO
+            'Tasas de Cambio' => [
+                ['slug' => 'currency_rates.view',   'name' => 'Ver Tasas de Cambio'],
             ]
         ];
 

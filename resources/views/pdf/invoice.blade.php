@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Factura {{ $invoice->invoice_number }}</title>
+    <title>Comprobante Digital {{ $invoice->invoice_number }}</title>
     <style>
         body { font-family: Arial, sans-serif; font-size: 13px; color: #333; }
         .header { width: 100%; margin-bottom: 20px; border-bottom: 2px solid #ccc; padding-bottom: 10px; }
@@ -31,8 +31,8 @@
             Teléfono: (0295) 263-7418</p>
         </div>
         <div class="invoice-details">
-            <h2 style="margin:0;">FACTURA</h2>
-            <p style="margin:5px 0;"><strong>N° Factura:</strong> {{ $invoice->invoice_number }}<br>
+            <h2 style="margin:0;">COMPROBANTE DIGITAL</h2>
+            <p style="margin:5px 0;"><strong>N° Comprobante:</strong> {{ $invoice->invoice_number }}<br>
             <strong>N° Control:</strong> {{ $invoice->control_number }}<br>
             <strong>Fecha de Emisión:</strong> {{ \Carbon\Carbon::parse($invoice->emitted_at ?? now())->format('d/m/Y h:i A') }}</p>
         </div>

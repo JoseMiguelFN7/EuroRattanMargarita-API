@@ -103,7 +103,7 @@ class GenerateInvoiceJob implements ShouldQueue
                 'order'   => $this->order
             ]);
 
-            $fileName = 'factura_' . $invoiceNumber . '.pdf';
+            $fileName = 'comprobante_' . $invoiceNumber . '.pdf';
             $filePath = 'invoices/' . $fileName;
 
             Storage::disk('public')->put($filePath, $pdf->output());
