@@ -557,7 +557,7 @@ class ProductController extends Controller
     /**
      * Obtener el conteo total de productos y sus subcategorías
      */
-    public function getInventoryCounts()
+    public function getProductCounts()
     {
         // Ejecutamos consultas COUNT directas a la base de datos por rendimiento
         $totalProducts   = Product::count();
