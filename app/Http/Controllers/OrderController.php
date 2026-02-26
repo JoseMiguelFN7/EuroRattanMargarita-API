@@ -96,8 +96,9 @@ class OrderController extends Controller
         // Obtenemos el ID del usuario directamente desde el guard de Sanctum
         $userId = auth('sanctum')->id();
 
-        // 1. Iniciamos la consulta base, forzando siempre el filtro por el usuario logueado
-        $query = Order::with(['products'])->where('user_id', $userId);
+        // 1. Iniciamos la consulta base
+        // --- NUEVO: Agregamos 'invoice' al Eager Loading para evitar consultas N+1 ---
+        $query = Order::with(['products', 'invoice'])->where('user_id', $userId);
 
         // 2. Filtro por Código de Orden (Búsqueda parcial o exacta)
         if ($request->filled('search')) {
@@ -133,6 +134,12 @@ class OrderController extends Controller
                     return $base * (1 - ($percent / 100));
                 });
 
+                // --- NUEVO: Resolvemos el link del comprobante si existe ---
+                $invoiceLink = null;
+                if ($order->invoice && $order->invoice->pdf_url) {
+                    $invoiceLink = asset('storage/' . $order->invoice->pdf_url);
+                }
+
                 return [
                     'id'            => $order->id,
                     'code'          => $order->code,
@@ -144,6 +151,9 @@ class OrderController extends Controller
                     'subtotal_usd'  => round($subtotalCalculated, 2),
                     'igtf_amount'   => (float) $order->igtf_amount,
                     'total_usd'     => round($subtotalCalculated + $order->igtf_amount, 2),
+                    
+                    // Exponemos el enlace de descarga directamente
+                    'invoice_download_link' => $invoiceLink,
                 ];
             });
 
