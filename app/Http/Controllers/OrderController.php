@@ -96,9 +96,32 @@ class OrderController extends Controller
         // Obtenemos el ID del usuario directamente desde el guard de Sanctum
         $userId = auth('sanctum')->id();
 
-        $orders = Order::with(['products'])
-            ->where('user_id', $userId)
-            ->latest() 
+        // 1. Iniciamos la consulta base, forzando siempre el filtro por el usuario logueado
+        $query = Order::with(['products'])->where('user_id', $userId);
+
+        // 2. Filtro por Código de Orden (Búsqueda parcial o exacta)
+        if ($request->filled('search')) {
+            $query->where('code', 'like', '%' . $request->input('search') . '%');
+        }
+
+        // 3. Filtro por Estatus Exacto
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
+        // 4. Filtro por Rango de Fechas (Basado en created_at)
+        if ($request->filled('start_date')) {
+            $startDate = Carbon::parse($request->input('start_date'))->startOfDay();
+            $query->where('created_at', '>=', $startDate);
+        }
+
+        if ($request->filled('end_date')) {
+            $endDate = Carbon::parse($request->input('end_date'))->endOfDay();
+            $query->where('created_at', '<=', $endDate);
+        }
+
+        // 5. Paginación y Transformación
+        $orders = $query->latest() 
             ->paginate($request->input('per_page', 10)) 
             ->through(function ($order) {
                 
