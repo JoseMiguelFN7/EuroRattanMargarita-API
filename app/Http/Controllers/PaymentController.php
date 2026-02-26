@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use App\Models\Payment;
 use App\Models\Order;
@@ -10,13 +11,52 @@ class PaymentController extends Controller
 {
     public function index(Request $request)
     {
-        // Eager loading anidado: cargamos la orden con su usuario, el método de pago y la moneda
-        $payments = Payment::with(['order.user', 'paymentMethod', 'currency'])
-            ->latest()
+        // 1. Eager loading base
+        $query = Payment::with(['order.user', 'paymentMethod', 'currency']);
+
+        // 2. Buscador Abierto (Referencia de pago, Código de orden o Nombre de usuario)
+        if ($request->filled('search')) {
+            $searchTerm = $request->input('search');
+            
+            $query->where(function($q) use ($searchTerm) {
+                // Buscamos en el número de referencia del pago
+                $q->where('reference_number', 'like', "%{$searchTerm}%")
+                  // Buscamos en el código de la orden asociada
+                  ->orWhereHas('order', function ($orderQuery) use ($searchTerm) {
+                      $orderQuery->where('code', 'like', "%{$searchTerm}%")
+                                 // Buscamos en el nombre del usuario dueño de la orden
+                                 ->orWhereHas('user', function ($userQuery) use ($searchTerm) {
+                                     $userQuery->where('name', 'like', "%{$searchTerm}%");
+                                 });
+                  });
+            });
+        }
+
+        // 3. Filtros Exactos (Status y Método de Pago)
+        if ($request->filled('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
+        if ($request->filled('payment_method_id')) {
+            $query->where('payment_method_id', $request->input('payment_method_id'));
+        }
+
+        // 4. Filtro por Rango de Fechas (Basado en created_at)
+        if ($request->filled('start_date')) {
+            $startDate = Carbon::parse($request->input('start_date'))->startOfDay();
+            $query->where('created_at', '>=', $startDate);
+        }
+
+        if ($request->filled('end_date')) {
+            $endDate = Carbon::parse($request->input('end_date'))->endOfDay();
+            $query->where('created_at', '<=', $endDate);
+        }
+
+        // 5. Ordenamiento, Paginación y Transformación
+        $payments = $query->latest()
             ->paginate($request->input('per_page', 15))
             ->through(function ($payment) {
                 
-                // Lógica de conversión (Ajusta 'USD' al código real que uses en tu tabla currencies)
                 $amount = (float) $payment->amount;
                 $rate = (float) $payment->exchange_rate;
 
@@ -36,6 +76,7 @@ class PaymentController extends Controller
                     'proof_image' => $payment->proof_image_url,
                     'reference_number' => $payment->reference_number,
                     'method' => [
+                        'id' => $payment->paymentMethod?->id, // Te agregué el ID por si lo necesitas en el front
                         'name' => $payment->paymentMethod?->name
                     ],
                     'amount' => round($montoUsd, 2),

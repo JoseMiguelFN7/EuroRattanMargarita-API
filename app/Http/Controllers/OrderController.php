@@ -12,6 +12,7 @@ use App\Http\Controllers\ProductMovementController;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Carbon\Carbon;
 
 
 class OrderController extends Controller
@@ -19,22 +20,47 @@ class OrderController extends Controller
     public function index(Request $request)
     {
         // 1. Preparamos la consulta
-        // Necesitamos cargar 'products' para poder hacer el cálculo matemático,
-        // aunque luego no lo enviemos en el JSON final.
         $query = Order::with(['user:id,name,email', 'products']);
 
-        // 2. Filtros
-        if ($request->has('status')) $query->where('status', $request->status);
-        if ($request->has('user_id')) $query->where('user_id', $request->user_id);
-        if ($request->has('code')) $query->where('code', 'like', '%' . $request->code . '%');
+        // 2. Filtro de Estado Exacto
+        if ($request->has('status')) {
+            $query->where('status', $request->status);
+        }
 
-        // 3. Paginación
+        // 3. Filtro Abierto (Buscador por Código, Nombre o Correo)
+        if ($request->has('search')) {
+            $searchTerm = $request->search;
+            
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('code', 'like', '%' . $searchTerm . '%')
+                  ->orWhereHas('user', function ($userQuery) use ($searchTerm) {
+                      $userQuery->where('name', 'like', '%' . $searchTerm . '%')
+                                ->orWhere('email', 'like', '%' . $searchTerm . '%');
+                  });
+            });
+        }
+
+        // 4. Filtro por Rango de Fechas
+        // Usamos filled() en lugar de has() para asegurar que no venga vacío ("")
+        if ($request->filled('start_date')) {
+            // Aseguramos que tome desde las 00:00:00 del día
+            $startDate = Carbon::parse($request->start_date)->startOfDay();
+            $query->where('created_at', '>=', $startDate);
+        }
+
+        if ($request->filled('end_date')) {
+            // Aseguramos que tome hasta las 23:59:59 del día
+            $endDate = Carbon::parse($request->end_date)->endOfDay();
+            $query->where('created_at', '<=', $endDate);
+        }
+
+        // 5. Paginación
         $perPage = $request->input('per_page', 10);
         
         $orders = $query->orderBy('created_at', 'desc')
                         ->paginate($perPage);
 
-        // 4. Transformación (Limpieza y Cálculo)
+        // 6. Transformación (Limpieza y Cálculo)
         $orders->through(function ($order) {
             
             // CÁLCULO DEL TOTAL AL VUELO
@@ -50,7 +76,7 @@ class OrderController extends Controller
                 'code'          => $order->code,
                 'status'        => $order->status,
                 'created_at'    => $order->created_at->toDateTimeString(),
-                'exchange_rate' => $order->exchange_rate,
+                'exchange_rate' => (float) $order->exchange_rate,
                 'notes'         => $order->notes,
                 
                 // Nuevos campos

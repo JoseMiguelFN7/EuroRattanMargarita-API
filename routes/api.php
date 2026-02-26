@@ -202,6 +202,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Rutas para el CRUD de Metodos de pago
     Route::get('/payment-methods', [\App\Http\Controllers\PaymentMethodController::class, 'index']); // Obtener todos los metodos de pago
+    Route::get('/payment-methods/paginated', [\App\Http\Controllers\PaymentMethodController::class, 'indexPaginated']); // Obtener todos los metodos de pago con paginacion
     Route::get('/payment-method/{id}', [\App\Http\Controllers\PaymentMethodController::class, 'show']); // Obtener un metodo de pago
     Route::post('/payment-method', [\App\Http\Controllers\PaymentMethodController::class, 'store']); // Crear un metodo de pago
     Route::post('/payment-method/{id}', [\App\Http\Controllers\PaymentMethodController::class, 'update']); // Actualizar un metodo de pago

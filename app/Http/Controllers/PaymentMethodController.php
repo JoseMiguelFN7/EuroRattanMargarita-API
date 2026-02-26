@@ -20,6 +20,26 @@ class PaymentMethodController extends Controller
         });
     }
 
+    public function indexPaginated(Request $request)
+    {
+        // 1. Definimos cuántos registros por página (por defecto 10 si no se envía)
+        $perPage = $request->input('per_page', 10);
+
+        // 2. Cargamos las relaciones y paginamos
+        $paymentMethods = PaymentMethod::with('currency')
+            ->paginate($perPage);
+
+        // 3. Transformamos la data usando through()
+        $paymentMethods->through(function ($method) {
+            // Si existe imagen, concatenamos el dominio completo
+            $method->image = $method->image ? asset('storage/' . $method->image) : null;
+            return $method;
+        });
+
+        // 4. Retornamos el JSON con la metadata de paginación
+        return response()->json($paymentMethods);
+    }
+
     public function show($id)
     {
         // 1. Buscar por ID incluyendo la relación con la moneda
