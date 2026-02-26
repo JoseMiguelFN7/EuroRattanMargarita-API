@@ -4,9 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Purchase;
 use App\Models\ProductMovement;
+use App\Models\Currency;
+use App\Models\CurrencyExchange;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Carbon\Carbon;
 
 class PurchaseController extends Controller
 {
@@ -17,12 +21,13 @@ class PurchaseController extends Controller
     {
         $perPage = $request->input('per_page', 10);
         
-        $purchases = Purchase::with(['supplier', 'products']) // Carga necesaria para el cálculo
+        $purchases = Purchase::with(['supplier', 'products']) 
                              ->orderBy('date', 'desc')
                              ->paginate($perPage);
 
         $purchases->getCollection()->each(function ($purchase) {
-            $purchase->append('total');
+            // Agregamos ambos totales generados por los accessors
+            $purchase->append(['total', 'total_ves', 'document_url']);
             $purchase->makeHidden('products'); 
 
             $purchase->supplier->makeHidden(['created_at', 'updated_at']);
@@ -39,31 +44,55 @@ class PurchaseController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'supplier_id' => 'required|exists:suppliers,id',
-            'code'        => 'required|string|unique:purchases,code',
-            'date'        => 'required|date',
-            'notes'       => 'nullable|string',
-            'products'    => 'required|array|min:1',
+            'supplier_id'         => 'required|exists:suppliers,id',
+            'code'                => 'required|string|unique:purchases,code',
+            'date'                => 'required|date',
+            'notes'               => 'nullable|string',
+            'products'            => 'required|array|min:1',
             'products.*.id'       => 'required|exists:products,id',
             'products.*.quantity' => 'required|numeric|min:0.01',
             'products.*.cost'     => 'required|numeric|min:0',
             'products.*.discount' => 'nullable|numeric|min:0',
             'products.*.color_id' => 'nullable|exists:colors,id',
+            'document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
+        // --- 1. OBTENER TASA HISTÓRICA SEGÚN LA FECHA DE COMPRA ---
+        $vesCurrency = Currency::where('code', 'VES')->first();
+        $exchangeRate = 0;
+
+        if ($vesCurrency) {
+            $rateRecord = CurrencyExchange::where('currency_id', $vesCurrency->id)
+                ->where('valid_at', '<=', Carbon::parse($request->date)->endOfDay())
+                ->orderBy('valid_at', 'desc')
+                ->first();
+            
+            $exchangeRate = $rateRecord ? $rateRecord->rate : 0;
+        }
+        // -----------------------------------------------------------
+
+        // --- PROCESAR EL ARCHIVO ---
+        $documentPath = null;
+        if ($request->hasFile('document')) {
+            // Se guardará en storage/app/public/purchases_docs
+            $documentPath = $request->file('document')->store('purchases_docs', 'public');
+        }
+
         DB::beginTransaction();
 
         try {
-            // 2. CREAR CABECERA
+            // 2. CREAR CABECERA (Guardando la tasa)
             $purchase = Purchase::create([
-                'supplier_id' => $request->supplier_id,
-                'code'        => $request->code,
-                'date'        => $request->date,
-                'notes'       => $request->notes
+                'supplier_id'   => $request->supplier_id,
+                'code'          => $request->code,
+                'date'          => $request->date,
+                'notes'         => $request->notes,
+                'exchange_rate' => $exchangeRate,
+                'document'      => $documentPath
             ]);
 
             foreach ($request->products as $item) {
@@ -71,7 +100,7 @@ class PurchaseController extends Controller
                 $qty      = $item['quantity'];
                 $cost     = $item['cost'];
                 $discount = $item['discount'] ?? 0;
-                $colorId  = $item['color_id'] ?? null; // Recibimos el ID
+                $colorId  = $item['color_id'] ?? null; 
 
                 // 3. GUARDAR PIVOTE (Histórico Financiero)
                 $purchase->products()->attach($prodId, [
@@ -83,10 +112,10 @@ class PurchaseController extends Controller
 
                 // 4. GUARDAR MOVIMIENTO
                 ProductMovement::create([
-                    'product_id' => $prodId,
-                    'quantity'   => $qty,
-                    'color_id'   => $colorId,
-                    'movement_date' => $request->date,
+                    'product_id'        => $prodId,
+                    'quantity'          => $qty,
+                    'color_id'          => $colorId,
+                    'movement_date'     => $request->date,
                     'movementable_id'   => $purchase->id,
                     'movementable_type' => Purchase::class
                 ]);
@@ -113,8 +142,6 @@ class PurchaseController extends Controller
      */
     public function show(string $id)
     {
-        // 1. CARGA DE RELACIONES
-        // Cargamos proveedor y productos con sus imágenes
         $purchase = Purchase::with([
             'supplier', 
             'products.images'
@@ -124,40 +151,32 @@ class PurchaseController extends Controller
             return response()->json(['message' => 'Compra no encontrada'], 404);
         }
 
-        // 2. OBTENER COLORES (Optimización)
-        // Recolectamos todos los IDs de colores usados en los pivotes para hacer 1 sola consulta
         $colorIds = $purchase->products->pluck('pivot.color_id')->filter()->unique();
         $colors = \App\Models\Color::whereIn('id', $colorIds)->get()->keyBy('id');
 
-        // 3. TRANSFORMACIÓN DE PRODUCTOS (ITEMS)
         $totalPurchase = 0;
 
-        // Mapeamos 'products' a una estructura 'items' más plana para la tabla del front
         $items = $purchase->products->map(function ($product) use ($colors, &$totalPurchase) {
             
-            // Datos del Pivote
             $qty      = $product->pivot->quantity;
             $cost     = $product->pivot->cost;
-            $discount = $product->pivot->discount;
+            $discountPercent = $product->pivot->discount ?? 0;
             $colorId  = $product->pivot->color_id;
 
-            // Cálculos matemáticos
-            $netCost  = $cost - $discount; 
+            $netCost  = $cost * (1 - ($discountPercent / 100));
             $subtotal = $netCost * $qty;
             $totalPurchase += $subtotal;
 
-            // Resolver Objeto Color
             $colorData = null;
             if ($colorId && isset($colors[$colorId])) {
                 $c = $colors[$colorId];
                 $colorData = [
                     'id'   => $c->id,
                     'name' => $c->name,
-                    'hex'  => $c->color, // Asumo que tu columna hex se llama 'color'
+                    'hex'  => $c->color, 
                 ];
             }
 
-            // Resolver Imagen Principal
             $imgUrl = null;
             if ($product->images->isNotEmpty()) {
                 $imgUrl = asset('storage/' . $product->images->first()->url);
@@ -168,33 +187,31 @@ class PurchaseController extends Controller
                 'code'       => $product->code,
                 'name'       => $product->name,
                 'image'      => $imgUrl,
-                // Datos de la transacción
                 'quantity'   => (float) $qty,
                 'cost'       => (float) $cost,
-                'discount'   => (float) $discount,
+                'discount'   => (float) $discountPercent,
                 'subtotal'   => round($subtotal, 2),
-                'color'      => $colorData, // Objeto {id, name, hex} o null
+                'color'      => $colorData, 
             ];
         });
 
-        // 4. CONSTRUCCIÓN DE RESPUESTA
         return response()->json([
-            'id'          => $purchase->id,
-            'code'        => $purchase->code,
-            'date'        => $purchase->date->format('Y-m-d'), // Formato limpio
-            'notes'       => $purchase->notes,
-            'created_at'  => $purchase->created_at,
-            // Total Calculado
-            'total'       => round($totalPurchase, 2),
-            // Proveedor Limpio
-            'supplier'    => [
+            'id'            => $purchase->id,
+            'code'          => $purchase->code,
+            'date'          => $purchase->date->format('Y-m-d'),
+            'notes'         => $purchase->notes,
+            'created_at'    => $purchase->created_at,
+            'exchange_rate' => (float) $purchase->exchange_rate, // Exponemos la tasa
+            'total'         => round($totalPurchase, 2), // Total USD
+            'total_ves'     => round($totalPurchase * $purchase->exchange_rate, 2), // Total VES calculado con la tasa guardada
+            'document_url'  => $purchase->document_url,
+            'supplier'      => [
                 'id'    => $purchase->supplier->id,
                 'name'  => $purchase->supplier->name,
                 'rif'   => $purchase->supplier->rif,
                 'email' => $purchase->supplier->email,
             ],
-            // Items transformados
-            'items'       => $items
+            'items'         => $items
         ]);
     }
 
@@ -209,25 +226,48 @@ class PurchaseController extends Controller
             return response()->json(['message' => 'Compra no encontrada'], 404);
         }
 
-        // 1. VALIDACIÓN COMPLETA
         $validator = Validator::make($request->all(), [
-            'supplier_id' => 'required|exists:suppliers,id',
-            // Validar unique ignorando el ID actual de la compra
-            'code'        => 'required|string|unique:purchases,code,' . $purchase->id,
-            'date'        => 'required|date',
-            'notes'       => 'nullable|string',
-            
-            // Validamos los productos igual que en el Store
+            'supplier_id'         => 'required|exists:suppliers,id',
+            'code'                => 'required|string|unique:purchases,code,' . $purchase->id,
+            'date'                => 'required|date',
+            'notes'               => 'nullable|string',
             'products'            => 'required|array|min:1',
             'products.*.id'       => 'required|exists:products,id',
             'products.*.quantity' => 'required|numeric|min:0.01',
             'products.*.cost'     => 'required|numeric|min:0',
             'products.*.discount' => 'nullable|numeric|min:0',
             'products.*.color_id' => 'nullable|exists:colors,id',
+            'document' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        // --- 1. RECALCULAR TASA POR SI CAMBIARON LA FECHA ---
+        $vesCurrency = Currency::where('code', 'VES')->first();
+        $exchangeRate = $purchase->exchange_rate; // Mantenemos la actual por defecto
+
+        if ($vesCurrency) {
+            $rateRecord = CurrencyExchange::where('currency_id', $vesCurrency->id)
+                ->where('valid_at', '<=', Carbon::parse($request->date)->endOfDay())
+                ->orderBy('valid_at', 'desc')
+                ->first();
+            
+            // Actualizamos la tasa basada en la nueva fecha proporcionada
+            $exchangeRate = $rateRecord ? $rateRecord->rate : $exchangeRate;
+        }
+        // -----------------------------------------------------
+
+        $documentPath = $purchase->document;
+
+        if ($request->hasFile('document')) {
+            // Si hay un archivo viejo, lo borramos físicamente del servidor
+            if ($purchase->document && Storage::disk('public')->exists($purchase->document)) {
+                Storage::disk('public')->delete($purchase->document);
+            }
+            // Guardamos el nuevo
+            $documentPath = $request->file('document')->store('purchases_docs', 'public');
         }
 
         DB::beginTransaction();
@@ -235,19 +275,17 @@ class PurchaseController extends Controller
         try {
             // 2. ACTUALIZAR CABECERA
             $purchase->update([
-                'supplier_id' => $request->supplier_id,
-                'code'        => $request->code,
-                'date'        => $request->date,
-                'notes'       => $request->notes
+                'supplier_id'   => $request->supplier_id,
+                'code'          => $request->code,
+                'date'          => $request->date,
+                'notes'         => $request->notes,
+                'exchange_rate' => $exchangeRate,
+                'document'      => $documentPath
             ]);
 
             // 3. LIMPIEZA TOTAL DE ESTA COMPRA (Reset)
-            // A. Borramos los movimientos asociados (El Stock "bajará" automáticamente al borrar esto)
             $purchase->movements()->delete();
-            
-            // B. Desvinculamos los productos del pivote (Financiero)
             $purchase->products()->detach();
-
 
             // 4. RE-INSERTAR LOS DATOS NUEVOS
             foreach ($request->products as $item) {
@@ -257,7 +295,6 @@ class PurchaseController extends Controller
                 $discount = $item['discount'] ?? 0;
                 $colorId  = $item['color_id'] ?? null;
 
-                // A. Guardar Pivote Nuevo (Financiero)
                 $purchase->products()->attach($prodId, [
                     'quantity' => $qty,
                     'cost'     => $cost,
@@ -265,16 +302,11 @@ class PurchaseController extends Controller
                     'color_id' => $colorId
                 ]);
 
-                // B. Crear Movimiento Nuevo (Físico)
-                // Usamos la nueva fecha y cantidades
                 ProductMovement::create([
-                    'product_id' => $prodId,
-                    'quantity'   => $qty,
-                    'color_id'   => $colorId,
-                    'movement_date' => $request->date, // Importante: Usar la fecha de la compra
-                    'type'       => 'purchase', // Opcional si usas type
-                    
-                    // Polimorfismo
+                    'product_id'        => $prodId,
+                    'quantity'          => $qty,
+                    'color_id'          => $colorId,
+                    'movement_date'     => $request->date, 
                     'movementable_id'   => $purchase->id,
                     'movementable_type' => Purchase::class
                 ]);
@@ -310,16 +342,12 @@ class PurchaseController extends Controller
         DB::beginTransaction();
 
         try {
-            // 1. Eliminar Movimientos (Kardex Físico)
-            // Esto es lo que hace que el stock "baje" automáticamente en tu vista.
-            // Al ser una relación polimórfica, borrará todos los ProductMovement vinculados a esta compra.
+            if ($purchase->document && Storage::disk('public')->exists($purchase->document)) {
+                Storage::disk('public')->delete($purchase->document);
+            }
+
             $purchase->movements()->delete();
-
-            // 2. Eliminar Pivotes (Detalle Financiero)
-            // Borra la relación en la tabla 'purchase_product'
             $purchase->products()->detach();
-
-            // 3. Eliminar la Compra (Cabecera)
             $purchase->delete();
 
             DB::commit();
