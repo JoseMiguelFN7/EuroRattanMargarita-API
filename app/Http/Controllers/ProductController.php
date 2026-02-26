@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Product;
 use App\Models\Material;
 use App\Models\Furniture;
+use App\Models\Currency;
 use App\Models\Set;
 use Illuminate\Support\Facades\DB;
 use App\Models\Color;
@@ -47,9 +48,13 @@ class ProductController extends Controller
             ], 400);
         }
 
-        // 1. CARGA DE RELACIONES PROFUNDA
-        // Cargamos todo lo necesario para que las fórmulas de precio (calcularPrecios / calculatePrices)
-        // funcionen sin hacer consultas extra a la base de datos.
+        // --- 1. OBTENER LA TASA VES ACTUAL ---
+        // Gracias a tu ajuste en el modelo, esto ya trae la tasa vigente correcta
+        $vesCurrency = Currency::where('code', 'VES')->first();
+        $vesRate = $vesCurrency ? $vesCurrency->current_rate : 0;
+
+        // 2. CARGA DE RELACIONES PROFUNDA
+        // Cargamos todo lo necesario para que las fórmulas de precio funcionen sin hacer consultas extra
         $products = Product::with([
             'images',
             'material',                            // Precio directo
@@ -63,8 +68,8 @@ class ProductController extends Controller
         ->take($quantity)
         ->get();
 
-        // 2. TRANSFORMACIÓN Y UNIFICACIÓN
-        $products->transform(function ($product) {
+        // 3. TRANSFORMACIÓN Y UNIFICACIÓN
+        $products->transform(function ($product) use ($vesRate) { // <-- Pasamos $vesRate aquí
             
             // --- A. LÓGICA DE PRECIOS EN CAMPO 'price' ---
             $calculatedPrice = 0;
@@ -84,18 +89,20 @@ class ProductController extends Controller
                 $calculatedPrice = $prices['pvp_natural'];
             }
 
-            // Asignamos el resultado al campo estandar 'price'
-            $product->price = $calculatedPrice;
+            // Asignamos el resultado al campo estandar 'price' (USD)
+            $product->price = round($calculatedPrice, 2);
 
+            // --- B. CÁLCULO EN BOLÍVARES (VES) ---
+            // Multiplicamos el precio calculado por la tasa vigente y redondeamos
+            $product->price_VES = round($calculatedPrice * $vesRate, 2);
 
-            // --- B. LIMPIEZA DE IMÁGENES ---
+            // --- C. LIMPIEZA DE IMÁGENES ---
             $product->images->each(function ($image) {
                 $image->url = asset('storage/' . $image->url);
                 $image->makeHidden(['created_at', 'updated_at', 'product_id']);
             });
 
-
-            // --- C. LIMPIEZA FINAL ---
+            // --- D. LIMPIEZA FINAL ---
             // Ocultamos las relaciones complejas para dejar el objeto plano
             $product->makeHidden([
                 'created_at', 
@@ -136,6 +143,11 @@ class ProductController extends Controller
             return response()->json(['message' => 'Producto no encontrado'], 404);
         }
 
+        // --- NUEVO: OBTENER LA TASA VES ACTUAL ---
+        $vesCurrency = Currency::where('code', 'VES')->first();
+        $vesRate = $vesCurrency ? $vesCurrency->current_rate : 0;
+        // -----------------------------------------
+
         // 2. LIMPIEZA DE PRODUCTO (Nivel Raíz)
         // Mantenemos la estructura, solo ocultamos fechas y campos internos
         $product->makeHidden(['created_at', 'updated_at']);
@@ -158,6 +170,8 @@ class ProductController extends Controller
         
         // --- CASO MATERIAL ---
         if ($product->material) {
+            $product->material->price_VES = round($product->material->price * $vesRate, 2);
+
             // Ocultamos los hermanos nulos para no enviar "furniture": null
             $product->makeHidden(['furniture', 'set']);
             
@@ -184,6 +198,10 @@ class ProductController extends Controller
             $furniture->pvp_natural = $precios['pvp_natural'];
             $furniture->pvp_color = $precios['pvp_color'];
 
+            // --- NUEVO: CÁLCULOS EN BOLÍVARES (VES) ---
+            $furniture->pvp_natural_VES = round($precios['pvp_natural'] * $vesRate, 2);
+            $furniture->pvp_color_VES   = round($precios['pvp_color'] * $vesRate, 2);
+
             // B. Limpieza GENERAL del Mueble
             // Ocultamos 'product' para evitar el bucle infinito y datos repetidos
             $furniture->makeHidden(['product', 'materials', 'labors', 'created_at', 'updated_at', 'product_id']);
@@ -205,6 +223,10 @@ class ProductController extends Controller
             $precios = $set->calcularPrecios();
             $set->pvp_natural = $precios['pvp_natural'];
             $set->pvp_color = $precios['pvp_color'];
+
+            // --- NUEVO: CÁLCULOS EN BOLÍVARES (VES) ---
+            $set->pvp_natural_VES = round($precios['pvp_natural'] * $vesRate, 2);
+            $set->pvp_color_VES   = round($precios['pvp_color'] * $vesRate, 2);
 
             $set->available_colors = $set->calcularColoresDisponibles();
 
@@ -310,8 +332,21 @@ class ProductController extends Controller
         $perPage = $request->input('per_page', 8);
         $search = $request->input('q'); // Capturamos la variable 'q' que envía Axios
 
+        // --- NUEVO: OBTENER LA TASA VES ACTUAL ---
+        $vesCurrency = Currency::where('code', 'VES')->first();
+        $vesRate = $vesCurrency ? $vesCurrency->current_rate : 0;
+        // -----------------------------------------
+
         // 2. Iniciamos el Query con las relaciones
-        $query = Product::with(['material', 'furniture', 'set', 'colors', 'images']);
+        $query = Product::with([
+            'images', 
+            'colors',
+            'material', 
+            'furniture.materials.materialTypes', 
+            'furniture.labors',
+            'set.furnitures.materials.materialTypes',
+            'set.furnitures.labors'
+        ])->where('sell', true);
 
         // Aplicamos el filtro solo si viene algo en la búsqueda
         if ($search) {
@@ -322,7 +357,7 @@ class ProductController extends Controller
         $products = $query->paginate($perPage);
 
         // 3. Transformación
-        $products->through(function ($product) {
+        $products->through(function ($product) use ($vesRate) {
             
             if ($product->images && $product->images->isNotEmpty()) {
                 // Mapeamos las URLs completas
@@ -338,10 +373,24 @@ class ProductController extends Controller
                 $product->image = null;
             }
 
-            if($product->furniture){
+            if($product->material){
+                $product->material->price_VES = round($product->material->price * $vesRate, 2);
+            }elseif($product->furniture){
                 $precios = $product->furniture->calcularPrecios();
+                
                 $product->furniture->pvp_natural = $precios['pvp_natural'];
                 $product->furniture->pvp_color = $precios['pvp_color'];
+                
+                $product->furniture->pvp_natural_VES = round($precios['pvp_natural'] * $vesRate, 2);
+                $product->furniture->pvp_color_VES   = round($precios['pvp_color'] * $vesRate, 2);
+            } elseif($product->set){
+                $precios = $product->set->calcularPrecios();
+            
+                $product->set->pvp_natural = $precios['pvp_natural'];
+                $product->set->pvp_color = $precios['pvp_color'];
+
+                $product->set->pvp_natural_VES = round($precios['pvp_natural'] * $vesRate, 2);
+                $product->set->pvp_color_VES   = round($precios['pvp_color'] * $vesRate, 2);
             }
 
             return $product;

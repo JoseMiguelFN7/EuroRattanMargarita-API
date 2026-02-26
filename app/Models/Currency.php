@@ -20,13 +20,18 @@ class Currency extends Model
         return $this->hasMany(PaymentMethod::class);
     }
 
-    // Helper: Obtener la tasa actual (último registro)
+    // Helper: Obtener la tasa actual (último registro VÁLIDO)
     public function getCurrentRateAttribute()
     {
         // Si es la moneda primaria (USD), la tasa siempre es 1
         if ($this->is_primary) return 1;
 
-        $latest = $this->exchangeRates()->latest('valid_at')->first();
-        return $latest ? $latest->rate : 0;
+        // Buscamos la tasa más reciente cuya fecha de validez ya haya comenzado
+        $latestRate = $this->exchangeRates()
+            ->where('valid_at', '<=', now()) // Ignora tasas futuras
+            ->orderBy('valid_at', 'desc')   // Ordena de la más nueva a la más vieja
+            ->first();
+
+        return $latestRate ? $latestRate->rate : 0;
     }
 }

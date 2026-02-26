@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Set;
 use App\Models\Product;
+use App\Models\Currency;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -81,6 +82,11 @@ class SetController extends Controller
         $perPage = $request->input('per_page', 10);
         $setTypeIds = $request->input('set_type_id'); // 1. Capturamos el arreglo de IDs
 
+        // --- NUEVO: OBTENER LA TASA VES ACTUAL ---
+        $vesCurrency = Currency::where('code', 'VES')->first();
+        $vesRate = $vesCurrency ? $vesCurrency->current_rate : 0;
+        // -----------------------------------------
+
         // 2. INICIAMOS EL QUERY BUILDER (Solo productos a la venta)
         $query = Set::whereHas('product', function ($q) {
             $q->where('sell', true);
@@ -106,14 +112,18 @@ class SetController extends Controller
             'furnitures.product.stocks'
         ])->paginate($perPage);
 
-        // 5. TRANSFORMACIÓN (Se mantiene intacta)
-        $sets->through(function ($set) {
+        // 5. TRANSFORMACIÓN
+        $sets->through(function ($set) use ($vesRate) { // <-- Pasamos $vesRate aquí
             
             // --- A. LLAMADO AL MODELO PARA CÁLCULOS ---
             $precios = $set->calcularPrecios();
             
             $set->pvp_natural = $precios['pvp_natural'];
             $set->pvp_color = $precios['pvp_color'];
+
+            // --- NUEVO: CÁLCULOS EN BOLÍVARES (VES) ---
+            $set->pvp_natural_VES = round($precios['pvp_natural'] * $vesRate, 2);
+            $set->pvp_color_VES   = round($precios['pvp_color'] * $vesRate, 2);
 
             // B. DISPONIBILIDAD DE COLORES
             $set->available_colors = $set->calcularColoresDisponibles();
@@ -136,7 +146,6 @@ class SetController extends Controller
             if ($set->setType) $set->setType->makeHidden(['created_at', 'updated_at']);
 
             // Ocultamos la lógica interna del Set
-            // Agregué 'set_type_id' por si acaso, para asegurar que se oculte sin importar si lo nombraste en singular o plural
             $set->makeHidden(['furnitures', 'product_id', 'set_types_id', 'set_type_id', 'created_at', 'updated_at']);
 
             return $set;

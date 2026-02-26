@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Furniture;
 use App\Models\Product;
+use App\Models\Currency;
 use App\Models\ProductStockView;
 use App\Models\ProductMovement;
 use Illuminate\Support\Facades\Validator;
@@ -83,6 +84,11 @@ class FurnitureController extends Controller
         $perPage = $request->input('per_page', 8);
         $furnitureTypeIds = $request->input('furniture_type_id'); // 1. Capturamos el arreglo de IDs
 
+        // --- NUEVO: OBTENER LA TASA VES ACTUAL ---
+        $vesCurrency = Currency::where('code', 'VES')->first();
+        $vesRate = $vesCurrency ? $vesCurrency->current_rate : 0;
+        // -----------------------------------------
+
         // 2. INICIAMOS EL QUERY BUILDER (Solo productos a la venta)
         $query = Furniture::whereHas('product', function ($q) {
             $q->where('sell', true);
@@ -109,7 +115,7 @@ class FurnitureController extends Controller
         ])->paginate($perPage);
 
         // 5. TRANSFORMACIÓN (Se mantiene intacta)
-        $furnitures->through(function ($furniture) {
+        $furnitures->through(function ($furniture) use ($vesRate) {
             
             $product = $furniture->product;
 
@@ -126,6 +132,10 @@ class FurnitureController extends Controller
             $precios = $furniture->calcularPrecios();
             $furniture->pvp_natural = $precios['pvp_natural'];
             $furniture->pvp_color = $precios['pvp_color'];
+
+            // --- NUEVO: CÁLCULOS EN BOLÍVARES (VES) ---
+            $furniture->pvp_natural_VES = round($precios['pvp_natural'] * $vesRate, 2);
+            $furniture->pvp_color_VES   = round($precios['pvp_color'] * $vesRate, 2);
 
             // --- Stock ---
             if ($product && $product->stocks) {

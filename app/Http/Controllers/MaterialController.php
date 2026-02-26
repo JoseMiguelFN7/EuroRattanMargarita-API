@@ -80,6 +80,11 @@ class MaterialController extends Controller
         $perPage = $request->input('per_page', 8);
         $materialTypeIds = $request->input('material_type_id');
 
+        // --- NUEVO: OBTENER LA TASA VES ACTUAL ---
+        $vesCurrency = \App\Models\Currency::where('code', 'VES')->first();
+        $vesRate = $vesCurrency ? $vesCurrency->current_rate : 0;
+        // -----------------------------------------
+
         // 1. INICIAMOS EL QUERY BUILDER
         $query = Material::query()
             ->whereHas('product', function ($q) {
@@ -110,8 +115,13 @@ class MaterialController extends Controller
             ->paginate($perPage);
 
         // 4. LIMPIEZA DE DATOS (Transformación)
-        $materials->through(function ($material) {
+        $materials->through(function ($material) use ($vesRate) { // <-- Pasamos $vesRate aquí
             
+            // --- NUEVO: CÁLCULO EN BOLÍVARES ---
+            // El material ya tiene su propio campo 'price', solo multiplicamos
+            $material->price_VES = round($material->price * $vesRate, 2);
+
+
             // --- Nivel Material ---
             $material->makeHidden(['created_at', 'updated_at', 'product_id', 'unit_id']);
 
