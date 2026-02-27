@@ -3,13 +3,21 @@
 namespace App\Http\Controllers;
 
 use App\Models\InventoryAdjustment;
-use App\Models\ProductMovement;
+use App\Services\InventoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class InventoryAdjustmentController extends Controller
 {
+    protected $inventoryService;
+
+    // --- NUEVO: Inyectamos el servicio en el constructor ---
+    public function __construct(InventoryService $inventoryService)
+    {
+        $this->inventoryService = $inventoryService;
+    }
+
     /**
      * Obtener listado de ajustes con paginación
      */
@@ -58,7 +66,7 @@ class InventoryAdjustmentController extends Controller
             'products'             => 'required|array|min:1',
             'products.*.id'        => 'required|integer|exists:products,id',
             'products.*.color_id'  => 'nullable|integer|exists:colors,id',
-            'products.*.quantity'  => 'required|numeric|not_in:0', 
+            'products.*.quantity'  => 'required|numeric|not_in:0', // Permite positivos o negativos
         ]);
 
         if ($validator->fails()) {
@@ -85,16 +93,15 @@ class InventoryAdjustmentController extends Controller
                     'quantity' => $item['quantity'],
                 ]);
 
-                // B. Registrar el movimiento en el inventario usando la relación polimórfica
-                ProductMovement::create([
-                    'product_id'        => $item['id'],
-                    'color_id'          => $item['color_id'] ?? null,
-                    'quantity'          => $item['quantity'],
-                    'movement_date'     => $now,
-                    // Llenado Polimórfico
-                    'movementable_id'   => $adjustment->id,
-                    'movementable_type' => InventoryAdjustment::class,
-                ]);
+                // B. Registrar el movimiento de forma segura con el Servicio
+                // Si quantity es negativo y supera el stock, lanzará una excepción.
+                $this->inventoryService->recordMovement(
+                    $item['id'],
+                    $item['quantity'],
+                    $item['color_id'] ?? null,
+                    $now,
+                    $adjustment
+                );
             }
 
             DB::commit();
@@ -109,7 +116,7 @@ class InventoryAdjustmentController extends Controller
             return response()->json([
                 'message' => 'Ocurrió un error al procesar el ajuste de inventario.',
                 'error'   => $e->getMessage()
-            ], 500);
+            ], 400); // 400 Bad Request por ser error de lógica de negocio
         }
     }
 
@@ -124,7 +131,7 @@ class InventoryAdjustmentController extends Controller
             return response()->json(['message' => 'Ajuste no encontrado'], 404);
         }
 
-        // 1. Validar la petición (misma validación que en el store)
+        // 1. Validar la petición
         $validator = Validator::make($request->all(), [
             'concept'              => 'required|string|max:255',
             'products'             => 'required|array|min:1',
@@ -145,18 +152,16 @@ class InventoryAdjustmentController extends Controller
                 'concept' => $request->concept
             ]);
 
-            // 3. REVERSIÓN: Eliminar los movimientos de inventario anteriores
-            // Al hacer esto, el stock de los productos vuelve a como estaba antes del ajuste
-            ProductMovement::where('movementable_type', InventoryAdjustment::class)
-                ->where('movementable_id', $adjustment->id)
-                ->delete();
+            // 3. REVERSIÓN SEGURA
+            // Esto verificará si es matemáticamente seguro revertir el ajuste anterior
+            $this->inventoryService->reverseMovements($adjustment);
 
-            // 4. LIMPIEZA: Vaciar la tabla pivote (inventory_adjustment_product)
+            // 4. LIMPIEZA: Vaciar la tabla pivote 
             $adjustment->products()->detach();
 
             $now = now();
 
-            // 5. RECONSTRUCCIÓN: Insertar los nuevos datos tal como vinieron en el request
+            // 5. RECONSTRUCCIÓN: Insertar los nuevos datos 
             foreach ($request->products as $item) {
                 
                 // A. Insertar en la tabla pivote nuevamente
@@ -165,15 +170,14 @@ class InventoryAdjustmentController extends Controller
                     'quantity' => $item['quantity'],
                 ]);
 
-                // B. Registrar los nuevos movimientos en el inventario
-                ProductMovement::create([
-                    'product_id'        => $item['id'],
-                    'color_id'          => $item['color_id'] ?? null,
-                    'quantity'          => $item['quantity'],
-                    'movement_date'     => $now,
-                    'movementable_id'   => $adjustment->id,
-                    'movementable_type' => InventoryAdjustment::class,
-                ]);
+                // B. Registrar los nuevos movimientos de forma segura
+                $this->inventoryService->recordMovement(
+                    $item['id'],
+                    $item['quantity'],
+                    $item['color_id'] ?? null,
+                    $now,
+                    $adjustment
+                );
             }
 
             DB::commit();
@@ -188,7 +192,7 @@ class InventoryAdjustmentController extends Controller
             return response()->json([
                 'message' => 'Error al intentar actualizar el ajuste de inventario.',
                 'error'   => $e->getMessage()
-            ], 500);
+            ], 400); 
         }
     }
 
@@ -206,14 +210,12 @@ class InventoryAdjustmentController extends Controller
         DB::beginTransaction();
 
         try {
-            // 1. Eliminar los movimientos del inventario asociados a este ajuste.
-            // Al borrarlos de ProductMovement, si tu vista/stock lee de ahí, el stock vuelve a la normalidad.
-            ProductMovement::where('movementable_type', InventoryAdjustment::class)
-                ->where('movementable_id', $adjustment->id)
-                ->delete();
+            // 1. REVERSIÓN SEGURA DEL INVENTARIO
+            // Si el ajuste fue positivo y ya se vendió la mercancía, 
+            // este método lanzará un error y evitará que la base de datos se corrompa.
+            $this->inventoryService->reverseMovements($adjustment);
 
-            // 2. Limpiar la tabla pivote (Si le pusiste cascadeOnDelete() en la migración, esto es opcional, 
-            // pero siempre es buena práctica hacerlo explícito)
+            // 2. Limpiar la tabla pivote 
             $adjustment->products()->detach();
 
             // 3. Eliminar el ajuste
@@ -228,7 +230,7 @@ class InventoryAdjustmentController extends Controller
             return response()->json([
                 'message' => 'Error al intentar revertir el ajuste.',
                 'error'   => $e->getMessage()
-            ], 500);
+            ], 400);
         }
     }
 }

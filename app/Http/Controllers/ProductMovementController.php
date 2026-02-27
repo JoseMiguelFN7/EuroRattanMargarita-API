@@ -3,9 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
+use App\Models\Purchase;
+use App\Models\Order;
+use App\Models\Furniture;
+use App\Models\InventoryAdjustment;
 use App\Models\ProductMovement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+
 
 class ProductMovementController extends Controller
 {
@@ -72,11 +77,10 @@ class ProductMovementController extends Controller
             'color',
             'movementable' => function ($morphTo) {
                 $morphTo->morphWith([
-                    \App\Models\Purchase::class            => ['supplier'],
-                    \App\Models\Order::class               => ['user'],
-                    \App\Models\Furniture::class           => ['product'],
-                    // --- NUEVO TIPO POLIMÓRFICO ---
-                    \App\Models\InventoryAdjustment::class => ['user'], 
+                    Purchase::class            => ['supplier'],
+                    Order::class               => ['user'],
+                    Furniture::class           => ['product'],
+                    InventoryAdjustment::class => ['user'], 
                 ]);
             }
         ])

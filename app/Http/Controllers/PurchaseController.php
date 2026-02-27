@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Purchase;
-use App\Models\ProductMovement;
 use App\Models\Currency;
 use App\Models\CurrencyExchange;
+use App\Services\InventoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +14,14 @@ use Carbon\Carbon;
 
 class PurchaseController extends Controller
 {
+    protected $inventoryService;
+
+    // --- NUEVO: Inyectamos el servicio en el constructor ---
+    public function __construct(InventoryService $inventoryService)
+    {
+        $this->inventoryService = $inventoryService;
+    }
+
     /**
      * Display a listing of the resource.
      */
@@ -110,15 +118,14 @@ class PurchaseController extends Controller
                     'color_id' => $colorId
                 ]);
 
-                // 4. GUARDAR MOVIMIENTO
-                ProductMovement::create([
-                    'product_id'        => $prodId,
-                    'quantity'          => $qty,
-                    'color_id'          => $colorId,
-                    'movement_date'     => $request->date,
-                    'movementable_id'   => $purchase->id,
-                    'movementable_type' => Purchase::class
-                ]);
+                // 4. GUARDAR MOVIMIENTO USANDO EL SERVICIO (Entrada positiva)
+                $this->inventoryService->recordMovement(
+                    $prodId,
+                    $qty, // Positivo porque es una entrada al almacén
+                    $colorId,
+                    $request->date,
+                    $purchase
+                );
             }
 
             DB::commit();
@@ -131,9 +138,9 @@ class PurchaseController extends Controller
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json([
-                'message' => 'Error al registrar compra',
+                'message' => 'Error al registrar compra.',
                 'error' => $e->getMessage()
-            ], 500);
+            ], 400); // Cambiado a 400 para reflejar errores de lógica de negocio
         }
     }
 
@@ -283,8 +290,11 @@ class PurchaseController extends Controller
                 'document'      => $documentPath
             ]);
 
-            // 3. LIMPIEZA TOTAL DE ESTA COMPRA (Reset)
-            $purchase->movements()->delete();
+            // 3. LIMPIEZA SEGURA (El Salvador)
+            // Esto verificará si el stock actual permite revertir la compra original
+            $this->inventoryService->reverseMovements($purchase);
+            
+            // Si reverseMovements no arrojó error, es seguro borrar la relación pivote vieja
             $purchase->products()->detach();
 
             // 4. RE-INSERTAR LOS DATOS NUEVOS
@@ -302,14 +312,14 @@ class PurchaseController extends Controller
                     'color_id' => $colorId
                 ]);
 
-                ProductMovement::create([
-                    'product_id'        => $prodId,
-                    'quantity'          => $qty,
-                    'color_id'          => $colorId,
-                    'movement_date'     => $request->date, 
-                    'movementable_id'   => $purchase->id,
-                    'movementable_type' => Purchase::class
-                ]);
+                // Registrar los nuevos movimientos con el servicio
+                $this->inventoryService->recordMovement(
+                    $prodId,
+                    $qty,
+                    $colorId,
+                    $request->date,
+                    $purchase
+                );
             }
 
             DB::commit();
@@ -322,9 +332,9 @@ class PurchaseController extends Controller
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json([
-                'message' => 'Error al actualizar compra', 
-                'error' => $e->getMessage()
-            ], 500);
+                'message' => 'No se pudo actualizar la compra.', 
+                'error'   => $e->getMessage() // Aquí se mostrará el error si no hay stock suficiente para revertir
+            ], 400); // Usamos 400 para reglas de negocio
         }
     }
 
@@ -346,22 +356,26 @@ class PurchaseController extends Controller
                 Storage::disk('public')->delete($purchase->document);
             }
 
-            $purchase->movements()->delete();
+            // 1. REVERSIÓN SEGURA DE INVENTARIO
+            // Evaluará si los productos ya fueron consumidos. Si es así, lanza excepción y cancela el borrado.
+            $this->inventoryService->reverseMovements($purchase);
+            
+            // 2. Limpiar pivotes y eliminar
             $purchase->products()->detach();
             $purchase->delete();
 
             DB::commit();
 
             return response()->json([
-                'message' => 'Compra eliminada correctamente. El stock ha sido revertido.'
+                'message' => 'Compra eliminada correctamente. El stock ha sido revertido de forma segura.'
             ]);
 
         } catch (\Exception $e) {
             DB::rollback();
             return response()->json([
-                'message' => 'Error al eliminar la compra',
-                'error' => $e->getMessage()
-            ], 500);
+                'message' => 'Error al eliminar la compra.',
+                'error'   => $e->getMessage()
+            ], 400);
         }
     }
 }

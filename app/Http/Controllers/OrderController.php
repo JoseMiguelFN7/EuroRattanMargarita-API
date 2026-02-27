@@ -4,19 +4,25 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Models\Payment;
-use App\Models\ProductMovement;
 use App\Models\Product;
 use App\Models\PaymentMethod;
+use App\Services\InventoryService;
 use Illuminate\Http\Request;
-use App\Http\Controllers\ProductMovementController;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 
-
 class OrderController extends Controller
 {
+    protected $inventoryService;
+
+    // --- NUEVO: Inyectamos el servicio en el constructor ---
+    public function __construct(InventoryService $inventoryService)
+    {
+        $this->inventoryService = $inventoryService;
+    }
+
     public function index(Request $request)
     {
         // 1. Preparamos la consulta
@@ -41,15 +47,12 @@ class OrderController extends Controller
         }
 
         // 4. Filtro por Rango de Fechas
-        // Usamos filled() en lugar de has() para asegurar que no venga vacío ("")
         if ($request->filled('start_date')) {
-            // Aseguramos que tome desde las 00:00:00 del día
             $startDate = Carbon::parse($request->start_date)->startOfDay();
             $query->where('created_at', '>=', $startDate);
         }
 
         if ($request->filled('end_date')) {
-            // Aseguramos que tome hasta las 23:59:59 del día
             $endDate = Carbon::parse($request->end_date)->endOfDay();
             $query->where('created_at', '<=', $endDate);
         }
@@ -62,12 +65,9 @@ class OrderController extends Controller
 
         // 6. Transformación (Limpieza y Cálculo)
         $orders->through(function ($order) {
-            
-            // CÁLCULO DEL TOTAL AL VUELO
             $subtotalCalculated = $order->products->sum(function ($product) {
                 $base = $product->pivot->quantity * $product->pivot->price;
                 $percent = $product->pivot->discount ?? 0;
-                
                 return $base * (1 - ($percent / 100));
             });
 
@@ -78,12 +78,9 @@ class OrderController extends Controller
                 'created_at'    => $order->created_at->toDateTimeString(),
                 'exchange_rate' => (float) $order->exchange_rate,
                 'notes'         => $order->notes,
-                
-                // Nuevos campos
                 'subtotal_usd'  => round($subtotalCalculated, 2),
                 'igtf_amount'   => (float) $order->igtf_amount,
                 'total_usd'     => round($subtotalCalculated + $order->igtf_amount, 2),
-
                 'user' => $order->user,
             ];
         });
@@ -93,24 +90,17 @@ class OrderController extends Controller
 
     public function myOrders(Request $request)
     {
-        // Obtenemos el ID del usuario directamente desde el guard de Sanctum
         $userId = auth('sanctum')->id();
-
-        // 1. Iniciamos la consulta base
-        // --- NUEVO: Agregamos 'invoice' al Eager Loading para evitar consultas N+1 ---
         $query = Order::with(['products', 'invoice'])->where('user_id', $userId);
 
-        // 2. Filtro por Código de Orden (Búsqueda parcial o exacta)
         if ($request->filled('search')) {
             $query->where('code', 'like', '%' . $request->input('search') . '%');
         }
 
-        // 3. Filtro por Estatus Exacto
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
         }
 
-        // 4. Filtro por Rango de Fechas (Basado en created_at)
         if ($request->filled('start_date')) {
             $startDate = Carbon::parse($request->input('start_date'))->startOfDay();
             $query->where('created_at', '>=', $startDate);
@@ -121,20 +111,15 @@ class OrderController extends Controller
             $query->where('created_at', '<=', $endDate);
         }
 
-        // 5. Paginación y Transformación
         $orders = $query->latest() 
             ->paginate($request->input('per_page', 10)) 
             ->through(function ($order) {
-                
-                // Calculamos el subtotal en USD
                 $subtotalCalculated = $order->products->sum(function ($product) {
                     $base = $product->pivot->quantity * $product->pivot->price;
                     $percent = $product->pivot->discount ?? 0;
-                    
                     return $base * (1 - ($percent / 100));
                 });
 
-                // --- NUEVO: Resolvemos el link del comprobante si existe ---
                 $invoiceLink = null;
                 if ($order->invoice && $order->invoice->pdf_url) {
                     $invoiceLink = asset('storage/' . $order->invoice->pdf_url);
@@ -147,12 +132,9 @@ class OrderController extends Controller
                     'created_at'    => $order->created_at?->format('Y-m-d H:i:s'),
                     'exchange_rate' => $order->exchange_rate,
                     'notes'         => $order->notes,
-                    
                     'subtotal_usd'  => round($subtotalCalculated, 2),
                     'igtf_amount'   => (float) $order->igtf_amount,
                     'total_usd'     => round($subtotalCalculated + $order->igtf_amount, 2),
-                    
-                    // Exponemos el enlace de descarga directamente
                     'invoice_download_link' => $invoiceLink,
                 ];
             });
@@ -162,18 +144,15 @@ class OrderController extends Controller
 
     public function show($id)
     {
-        // 1. Buscamos la orden con todas sus relaciones necesarias
         $order = Order::with([
             'user:id,name,email,cellphone',
             'products',
-            // Aplicamos un closure para ordenar los pagos desde la base de datos
             'payments' => function ($query) {
-                $query->latest(); // Ordena por created_at de forma descendente
+                $query->latest(); 
             },
             'payments.paymentMethod' 
         ])->find($id);
 
-        // 2. Validación por si no existe
         if (!$order) {
             return response()->json(['message' => 'Orden no encontrada'], 404);
         }
@@ -181,7 +160,6 @@ class OrderController extends Controller
         $subtotalCalculated = $order->products->sum(function ($product) {
             $base = $product->pivot->quantity * $product->pivot->price;
             $percent = $product->pivot->discount ?? 0;
-            
             return $base * (1 - ($percent / 100));
         });
 
@@ -192,20 +170,14 @@ class OrderController extends Controller
             'created_at'    => $order->created_at->toDateTimeString(),
             'exchange_rate' => $order->exchange_rate,
             'notes'         => $order->notes,
-
-            // Métricas financieras
             'subtotal_usd'  => round($subtotalCalculated, 2),
             'igtf_amount'   => (float) $order->igtf_amount,
             'total_usd'     => round($subtotalCalculated + $order->igtf_amount, 2),
-
-            // Datos del Cliente
             'user' => [
                 'name'  => $order->user->name,
                 'email' => $order->user->email,
                 'cellphone' => $order->user->cellphone ?? 'N/A',
             ],
-
-            // Lista de Productos (Aplanando la tabla pivote)
             'products' => $order->products->map(function ($product) {
                 return [
                     'id'         => $product->id,
@@ -217,19 +189,13 @@ class OrderController extends Controller
                     'subtotal'   => round($product->pivot->quantity * $product->pivot->price, 2),
                 ];
             }),
-
-            // Datos del Pago
             'payments' => $order->payments->map(function ($payment) {
                 return [
                     'id'               => $payment->id,
                     'status'           => $payment->status,
                     'amount'           => $payment->amount,
                     'reference_number' => $payment->reference_number,
-                    
-                    // Generamos la URL completa para que el frontend la lea directo
                     'proof_image'      => $payment->proof_image ? asset('storage/' . $payment->proof_image) : null,
-                    
-                    // Datos del Método de Pago (Ej: Zelle, Banesco)
                     'method' => $payment->paymentMethod ? [
                         'name'  => $payment->paymentMethod->name,
                         'image' => $payment->paymentMethod->image ? asset('storage/' . $payment->paymentMethod->image) : null,
@@ -243,7 +209,6 @@ class OrderController extends Controller
 
     public function showByCode($code)
     {
-        // 1. Buscamos la orden con todas sus relaciones necesarias por su código
         $order = Order::with([
             'user:id,name,email,cellphone',
             'products',
@@ -253,20 +218,16 @@ class OrderController extends Controller
             'payments.paymentMethod' 
         ])->where('code', $code)->first();
 
-        // 2. Validación por si no existe
         if (!$order) {
             return response()->json(['message' => 'Orden no encontrada'], 404);
         }
 
-        // 3. Cálculos
         $subtotalCalculated = $order->products->sum(function ($product) {
             $base = $product->pivot->quantity * $product->pivot->price;
             $percent = $product->pivot->discount ?? 0;
-            
             return $base * (1 - ($percent / 100));
         });
 
-        // 4. Formateo y limpieza de la respuesta
         $cleanOrder = [
             'id'            => $order->id,
             'code'          => $order->code,
@@ -274,20 +235,14 @@ class OrderController extends Controller
             'created_at'    => $order->created_at->toDateTimeString(),
             'exchange_rate' => $order->exchange_rate,
             'notes'         => $order->notes,
-
-            // Métricas financieras
             'subtotal_usd'  => round($subtotalCalculated, 2),
             'igtf_amount'   => (float) $order->igtf_amount,
             'total_usd'     => round($subtotalCalculated + $order->igtf_amount, 2),
-
-            // Datos del Cliente
             'user' => [
                 'name'      => $order->user->name,
                 'email'     => $order->user->email,
                 'cellphone' => $order->user->cellphone ?? 'N/A',
             ],
-
-            // Lista de Productos (Aplanando la tabla pivote)
             'products' => $order->products->map(function ($product) {
                 return [
                     'id'         => $product->id,
@@ -299,19 +254,13 @@ class OrderController extends Controller
                     'subtotal'   => round($product->pivot->quantity * $product->pivot->price, 2),
                 ];
             }),
-
-            // Datos del Pago
             'payments' => $order->payments->map(function ($payment) {
                 return [
                     'id'               => $payment->id,
                     'status'           => $payment->status,
                     'amount'           => $payment->amount,
                     'reference_number' => $payment->reference_number,
-                    
-                    // Generamos la URL completa para que el frontend la lea directo
                     'proof_image'      => $payment->proof_image ? asset('storage/' . $payment->proof_image) : null,
-                    
-                    // Datos del Método de Pago (Ej: Zelle, Banesco)
                     'method' => $payment->paymentMethod ? [
                         'name'  => $payment->paymentMethod->name,
                         'image' => $payment->paymentMethod->image ? asset('storage/' . $payment->paymentMethod->image) : null,
@@ -325,7 +274,6 @@ class OrderController extends Controller
 
     public function showMyOrderByCode($code)
     {
-        // 1. Buscamos la orden
         $order = Order::with([
             'user:id,name,email,cellphone',
             'products',
@@ -335,28 +283,22 @@ class OrderController extends Controller
             'payments.paymentMethod' 
         ])->where('code', $code)->first();
 
-        // 2. Validación por si no existe
         if (!$order) {
             return response()->json(['message' => 'Orden no encontrada'], 404);
         }
 
-        // 3. VERIFICACIÓN DE SEGURIDAD
-        // Comparamos el ID del dueño de la orden con el ID del usuario logueado en el token
         if ($order->user_id !== auth('sanctum')->id()) {
             return response()->json([
                 'message' => 'Acceso denegado. Esta orden no pertenece a tu cuenta.'
             ], 403);
         }
 
-        // 4. Cálculos
         $subtotalCalculated = $order->products->sum(function ($product) {
             $base = $product->pivot->quantity * $product->pivot->price;
             $percent = $product->pivot->discount ?? 0;
-            
             return $base * (1 - ($percent / 100));
         });
 
-        // 5. Formateo y limpieza de la respuesta
         $cleanOrder = [
             'id'            => $order->id,
             'code'          => $order->code,
@@ -364,20 +306,14 @@ class OrderController extends Controller
             'created_at'    => $order->created_at->toDateTimeString(),
             'exchange_rate' => $order->exchange_rate,
             'notes'         => $order->notes,
-
-            // Métricas financieras
             'subtotal_usd'  => round($subtotalCalculated, 2),
             'igtf_amount'   => (float) $order->igtf_amount,
             'total_usd'     => round($subtotalCalculated + $order->igtf_amount, 2),
-
-            // Datos del Cliente
             'user' => [
                 'name'      => $order->user->name,
                 'email'     => $order->user->email,
                 'cellphone' => $order->user->cellphone ?? 'N/A',
             ],
-
-            // Lista de Productos (Aplanando la tabla pivote)
             'products' => $order->products->map(function ($product) {
                 return [
                     'id'         => $product->id,
@@ -389,17 +325,13 @@ class OrderController extends Controller
                     'subtotal'   => round($product->pivot->quantity * $product->pivot->price, 2),
                 ];
             }),
-
-            // Datos del Pago
             'payments' => $order->payments->map(function ($payment) {
                 return [
                     'id'               => $payment->id,
                     'status'           => $payment->status,
                     'amount'           => $payment->amount,
                     'reference_number' => $payment->reference_number,
-                    
                     'proof_image'      => $payment->proof_image ? asset('storage/' . $payment->proof_image) : null,
-                    
                     'method' => $payment->paymentMethod ? [
                         'name'  => $payment->paymentMethod->name,
                         'image' => $payment->paymentMethod->image ? asset('storage/' . $payment->paymentMethod->image) : null,
@@ -414,7 +346,6 @@ class OrderController extends Controller
     //Crear Orden
     public function store(Request $request)
     {
-        // 1. VALIDACIÓN (Se mantiene igual)
         $validator = Validator::make($request->all(), [
             'user_id'       => 'required|integer|exists:users,id',
             'exchange_rate' => 'required|numeric|min:0',
@@ -440,13 +371,10 @@ class OrderController extends Controller
         $uploadedPath = null;
 
         try {
-            // 2. CÁLCULO DEL SUBTOTAL E IGTF ANTES DE CREAR LA ORDEN
             $subtotal = 0;
             foreach ($request->products as $item) {
                 $lineTotal = $item['quantity'] * $item['price'];
                 $discountPercent = $item['discount'] ?? 0;
-                
-                // Restamos el porcentaje al total de la línea
                 $subtotal += $lineTotal * (1 - ($discountPercent / 100));
             }
 
@@ -454,12 +382,10 @@ class OrderController extends Controller
             if ($request->has('payment_method_id')) {
                 $paymentMethod = PaymentMethod::find($request->payment_method_id);
                 if ($paymentMethod && $paymentMethod->applies_igtf) {
-                    // El IGTF se calcula sobre el precio neto (ya con descuento aplicado)
                     $igtfAmount = round($subtotal * 0.03, 2);
                 }
             }
 
-            // 3. CREAR LA ORDEN (Ahora guardamos el igtf_amount)
             $initialStatus = $request->has('payment_amount') ? 'verifying_payment' : 'pending_payment';
 
             $order = Order::create([
@@ -467,7 +393,7 @@ class OrderController extends Controller
                 'exchange_rate' => $request->exchange_rate,
                 'notes'         => $request->notes,
                 'status'        => $initialStatus,
-                'igtf_amount'   => $igtfAmount, // <-- NUEVO
+                'igtf_amount'   => $igtfAmount,
             ]);
 
             $now = $order->created_at;
@@ -475,7 +401,6 @@ class OrderController extends Controller
             $productIds = collect($request->products)->pluck('id');
             $productsData = Product::with('set.furnitures')->whereIn('id', $productIds)->get()->keyBy('id');
 
-            // 4. RECORRER PRODUCTOS (Pivot + Movimientos)
             foreach ($request->products as $item) {
                 $variantId = $item['variant_id'] ?? null;
                 $productModel = $productsData[$item['id']];
@@ -487,34 +412,31 @@ class OrderController extends Controller
                     'variant_id' => $variantId,
                 ]);
 
-                // Movimientos de inventario (Se mantiene exactamente igual...)
+                // --- NUEVO: Usamos el InventoryService para salidas con bloqueo ---
                 if ($productModel->set && $productModel->set->furnitures) {
                     foreach ($productModel->set->furnitures as $furniture) {
                         $qtyPerSet = $furniture->pivot->quantity;
                         $totalToDeduct = -abs($item['quantity'] * $qtyPerSet);
 
-                        ProductMovement::create([
-                            'product_id'        => $furniture->product_id,
-                            'color_id'          => $variantId,
-                            'quantity'          => $totalToDeduct,
-                            'movement_date'     => $now,
-                            'movementable_id'   => $order->id,
-                            'movementable_type' => Order::class,
-                        ]);
+                        $this->inventoryService->recordMovement(
+                            $furniture->product_id,
+                            $totalToDeduct,
+                            $variantId,
+                            $now,
+                            $order
+                        );
                     }
                 } else {
-                    ProductMovement::create([
-                        'product_id'        => $item['id'],
-                        'color_id'          => $variantId,
-                        'quantity'          => -abs($item['quantity']),
-                        'movement_date'     => $now,
-                        'movementable_id'   => $order->id,
-                        'movementable_type' => Order::class,
-                    ]);
+                    $this->inventoryService->recordMovement(
+                        $item['id'],
+                        -abs($item['quantity']),
+                        $variantId,
+                        $now,
+                        $order
+                    );
                 }
             }
 
-            // 5. PROCESAR PAGO
             if ($request->has('payment_amount')) {
                 if ($request->hasFile('payment_proof')) {
                     $uploadedPath = $request->file('payment_proof')->store('payments', 'public');
@@ -550,14 +472,12 @@ class OrderController extends Controller
 
     public function cancel($id)
     {
-        // 1. Buscar la orden por ID sin importar a qué usuario le pertenezca
         $order = Order::find($id);
 
         if (!$order) {
             return response()->json(['message' => 'Orden no encontrada.'], 404);
         }
 
-        // 2. Validar que el status sea estrictamente 'pending_payment'
         if ($order->status !== 'pending_payment') {
             return response()->json([
                 'message' => 'Solo se pueden cancelar órdenes que estén pendientes de pago.'
@@ -567,14 +487,10 @@ class OrderController extends Controller
         DB::beginTransaction();
 
         try {
-            // 3. Cambiar el status de la orden a cancelled
             $order->update(['status' => 'cancelled']);
 
-            // 4. Eliminar los movimientos de inventario asociados para restaurar el stock
-            // Usamos la relación polimórfica exacta con la que se crearon en el store
-            ProductMovement::where('movementable_type', Order::class)
-                ->where('movementable_id', $order->id)
-                ->delete();
+            // --- NUEVO: Reversión segura usando el servicio ---
+            $this->inventoryService->reverseMovements($order);
 
             DB::commit();
 
@@ -600,32 +516,18 @@ class OrderController extends Controller
     //eliminar orden
     public function destroy($id)
     {
-        // Buscar la orden
         $order = Order::find($id);
 
         if (!$order) {
             return response()->json(['error' => 'Orden no encontrada'], 404);
         }
 
-        // Iniciar una transacción para asegurar consistencia
         DB::beginTransaction();
 
         try {
-            // Instancia del controlador de movimientos
-            $movementController = new ProductMovementController();
-
-            // Obtener productos asociados a la orden con su información adicional
-            $products = $order->products()->withPivot('quantity', 'color_id')->get();
-
-            foreach ($products as $product) {
-                // Crear movimiento opuesto (cantidad positiva)
-                $movementController->createProductMovement(
-                    $product->id,
-                    abs($product->pivot->quantity), // Cantidad en positivo
-                    now(),
-                    $product->pivot->color_id
-                );
-            }
+            // --- NUEVO: Reversión segura de stock usando el servicio centralizado ---
+            // Esto elimina la necesidad de inyectar ProductMovementController y falsear el Kardex
+            $this->inventoryService->reverseMovements($order);
 
             // Eliminar relaciones en la tabla intermedia
             $order->products()->detach();
@@ -633,12 +535,10 @@ class OrderController extends Controller
             // Eliminar la orden
             $order->delete();
 
-            // Confirmar la transacción
             DB::commit();
 
             return response()->json(['message' => 'Orden eliminada correctamente'], 200);
         } catch (\Exception $e) {
-            // Revertir la transacción si ocurre un error
             DB::rollBack();
 
             return response()->json([
