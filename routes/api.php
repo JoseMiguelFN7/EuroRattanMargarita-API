@@ -100,6 +100,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     //Rutas para el CRUD de materiales
     Route::get('/materials/noPage/all', [\App\Http\Controllers\MaterialController::class, 'listMaterialsPurchase']); //Obtener todos los materiales sin paginación (para compras)
     Route::post('/material', [\App\Http\Controllers\MaterialController::class, 'store']); //Crear un material
+    Route::get('/material/costHistory/{cod}', [\App\Http\Controllers\MaterialController::class, 'materialCostHistory']); //Obtener historico de costos de material
     Route::post('/material/{id}', [\App\Http\Controllers\MaterialController::class, 'update']); //Actualizar un material
     Route::delete('/material/{id}', [\App\Http\Controllers\MaterialController::class, 'destroy']); //Eliminar un material
 

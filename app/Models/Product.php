@@ -46,4 +46,11 @@ class Product extends Model
     public function stocks(){
         return $this->hasMany(ProductStockView::class, 'productID', 'id');
     }
+
+    public function purchases()
+    {
+        return $this->belongsToMany(Purchase::class, 'purchase_product')
+                    ->withPivot(['quantity', 'cost', 'discount', 'color_id'])
+                    ->withTimestamps();
+    }
 }

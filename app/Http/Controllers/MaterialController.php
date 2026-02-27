@@ -259,6 +259,66 @@ class MaterialController extends Controller
         return response()->json($material);
     }
 
+    public function materialCostHistory($code)
+    {
+        // 1. Buscamos el producto por su código
+        $product = Product::where('code', $code)
+            ->whereHas('material')
+            ->with([
+                'material.unit',
+                'purchases' => function ($query) {
+                    // Ordenamos: La compra [0] siempre será la más reciente
+                    $query->with('supplier')
+                          ->orderBy('date', 'desc')
+                          ->orderBy('created_at', 'desc');
+                }
+            ])
+            ->firstOrFail();
+
+        $purchases = $product->purchases;
+
+        // --- CORRECCIÓN: El costo actual es el de la última compra ---
+        // Si hay compras, tomamos el costo del pivote de la primera (la más reciente).
+        // Si no hay compras aún (material nuevo), el costo es 0.00
+        $currentCost = $purchases->isNotEmpty() 
+            ? (float) $purchases->first()->pivot->cost 
+            : 0.00;
+
+        // 2. Armamos la cabecera del Material
+        $materialData = [
+            'code'         => $product->code,
+            'name'         => $product->name,
+            'current_cost' => round($currentCost, 2), 
+            'unit'         => $product->material->unit ? $product->material->unit->name : 'N/A'
+        ];
+
+        // 3. Reconstruimos el historial comparando los costos
+        $history = [];
+
+        foreach ($purchases as $index => $purchase) {
+            $newCost = (float) $purchase->pivot->cost;
+            
+            // Buscamos la compra anterior en el tiempo (índice + 1)
+            $olderPurchase = $purchases->get($index + 1);
+            $oldCost = $olderPurchase ? (float) $olderPurchase->pivot->cost : 0.00;
+
+            $history[] = [
+                'id'            => $purchase->pivot->id ?? $purchase->id, 
+                'date'          => $purchase->created_at ? $purchase->created_at->format('Y-m-d H:i:s') : $purchase->date->format('Y-m-d 00:00:00'),
+                'old_cost'      => round($oldCost, 2),
+                'new_cost'      => round($newCost, 2),
+                'purchase_id'   => $purchase->id,
+                'purchase_code' => $purchase->code,
+                'provider_name' => $purchase->supplier ? $purchase->supplier->name : 'Sin Proveedor',
+            ];
+        }
+
+        return response()->json([
+            'material' => $materialData,
+            'history'  => $history
+        ]);
+    }
+
     //Obtener una cantidad especifica de materiales en orden aleatorio
     public function rand($quantity)
     {

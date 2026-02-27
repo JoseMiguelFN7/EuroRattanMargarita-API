@@ -47,10 +47,11 @@ class PermissionsSeeder extends Seeder
 
             // 4. MATERIALES (Insumos/Tapicería)
             'Materiales' => [
-                ['slug' => 'materials.view',   'name' => 'Ver Materiales'],
-                ['slug' => 'materials.create', 'name' => 'Crear Materiales'],
-                ['slug' => 'materials.edit',   'name' => 'Editar Materiales'],
-                ['slug' => 'materials.delete', 'name' => 'Eliminar Materiales'],
+                ['slug' => 'materials.view',              'name' => 'Ver Materiales'],
+                ['slug' => 'materials.create',            'name' => 'Crear Materiales'],
+                ['slug' => 'materials.edit',              'name' => 'Editar Materiales'],
+                ['slug' => 'materials.delete',            'name' => 'Eliminar Materiales'],
+                ['slug' => 'materials.costs.view',        'name' => 'Ver Historial de Costos de Materiales'],
                 ['slug' => 'materials.parameters.view',   'name' => 'Ver Parámetros de Materiales'],
                 ['slug' => 'materials.parameters.create', 'name' => 'Crear Parámetros de Materiales'],
                 ['slug' => 'materials.parameters.edit',   'name' => 'Editar Parámetros de Materiales'],
