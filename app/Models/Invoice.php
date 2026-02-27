@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 class Invoice extends Model
 {
@@ -20,7 +21,8 @@ class Invoice extends Model
         'total_amount',
         'pdf_url',
         'emitted_at',
-        'igtf_amount'
+        'igtf_amount',
+        'verification_token'
     ];
 
     protected $casts = [
@@ -32,6 +34,15 @@ class Invoice extends Model
         'total_amount' => 'decimal:2',
         'igtf_amount' => 'decimal:2',
     ];
+
+    protected static function booted()
+    {
+        static::creating(function ($invoice) {
+            if (empty($invoice->verification_token)) {
+                $invoice->verification_token = (string) Str::uuid();
+            }
+        });
+    }
 
     public function order()
     {

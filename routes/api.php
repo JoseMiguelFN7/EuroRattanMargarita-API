@@ -176,6 +176,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     
     // Rutas para el CRUD de Facturas
     Route::get('/invoices', [\App\Http\Controllers\InvoiceController::class, 'index']); // Obtener todos los invoices
+    Route::get('/invoices/verify/{token}', [\App\Http\Controllers\InvoiceController::class, 'verifyToken']); // Verificar validez con QR
     
     // Rutas para el CRUD de compras
     Route::get('/purchases', [\App\Http\Controllers\PurchaseController::class, 'index']); // Obtener todas las compras con paginacion

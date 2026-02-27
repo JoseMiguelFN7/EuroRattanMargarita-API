@@ -83,4 +83,38 @@ class InvoiceController extends Controller
 
         return response()->json($invoices);
     }
+
+    /**
+     * Verifica la autenticidad de un comprobante mediante su token de seguridad.
+     */
+    public function verifyToken(string $token)
+    {
+        // Buscamos la factura y cargamos la orden para saber su estatus y código actual
+        $invoice = Invoice::with('order')->where('verification_token', $token)->first();
+
+        if (!$invoice) {
+            return response()->json([
+                'valid'   => false,
+                'message' => 'El código escaneado no pertenece a un comprobante válido registrado en el sistema.'
+            ], 404);
+        }
+
+        $invoiceLink = $invoice->pdf_url ? asset('storage/' . $invoice->pdf_url) : null;
+
+        // Si existe, devolvemos la verdad absoluta de la base de datos
+        return response()->json([
+            'valid'           => true,
+            'message'         => 'Comprobante verificado exitosamente.',
+            'data' => [
+                'invoice_number'  => $invoice->invoice_number,
+                'client_name'     => $invoice->client_name,
+                'client_document' => $invoice->client_document,
+                'emitted_at'      => $invoice->emitted_at->format('Y-m-d H:i:s'),
+                
+                // --- NUEVOS DATOS DE LA ORDEN ---
+                'order_code'      => $invoice->order ? $invoice->order->code : 'N/A',
+                'invoice_url'         => $invoiceLink,
+            ]
+        ]);
+    }
 }

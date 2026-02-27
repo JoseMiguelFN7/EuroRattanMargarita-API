@@ -15,10 +15,16 @@
         th { background-color: #f4f4f4; text-align: center; }
         .text-right { text-align: right; }
         .text-center { text-align: center; }
-        .totals { width: 50%; float: right; margin-top: 20px; }
+        
+        /* Contenedor inferior dividido en 2 columnas */
+        .bottom-section { width: 100%; margin-top: 20px; }
+        .qr-section { width: 45%; float: left; padding-top: 10px; }
+        .totals { width: 50%; float: right; }
+        
         .totals table th, .totals table td { text-align: right; font-size: 13px; padding: 4px 8px; }
         .rate-info { font-size: 11px; color: #555; margin-top: 10px; font-style: italic; }
         .footer-note { margin-top: 50px; font-size: 10px; text-align: center; color: #777; }
+        .qr-text { font-size: 10px; color: #555; margin-top: 5px; }
     </style>
 </head>
 <body>
@@ -62,7 +68,6 @@
                 $precioBs = $item->pivot->price * $rate;
                 $descuentoPorcentaje = $item->pivot->discount ?? 0;
                 
-                // Calculamos el subtotal de la línea aplicando el descuento porcentual
                 $montoBaseBs = $item->pivot->quantity * $precioBs;
                 $montoDescuentoBs = $montoBaseBs * ($descuentoPorcentaje / 100);
                 $totalLineaBs = $montoBaseBs - $montoDescuentoBs;
@@ -83,36 +88,43 @@
         * (E): Operación Exenta de IVA según el régimen de Puerto Libre (Estado Nueva Esparta).
     </div>
 
-    <div class="totals">
-        <table>
-            <tr>
-                <th style="border:none;">Subtotal Exento:</th>
-                <td style="border:none;">Bs. {{ number_format($invoice->exempt_amount, 2, ',', '.') }}</td>
-            </tr>
-            <tr>
-                <th style="border:none;">IVA (0%):</th>
-                <td style="border:none;">Bs. 0,00</td>
-            </tr>
-            
-            {{-- Mostramos el IGTF solo si se generó un monto --}}
-            @if($invoice->igtf_amount > 0)
-            <tr>
-                <th style="border:none;">IGTF (3%):</th>
-                <td style="border:none;">Bs. {{ number_format($invoice->igtf_amount, 2, ',', '.') }}</td>
-            </tr>
+    <div class="bottom-section">
+        <div class="qr-section">
+            @if($invoice->verification_token)
+                <img src="data:image/svg+xml;base64,{{ base64_encode(SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')->margin(0)->size(90)->generate($invoice->verification_token)) }}" alt="QR Code">
+                <p class="qr-text">Escanee este código para<br>verificar la autenticidad<br>del comprobante.</p>
             @endif
+        </div>
 
-            <tr style="background-color: #f4f4f4;">
-                <th style="font-size: 15px;">TOTAL A PAGAR:</th>
-                <td style="font-size: 15px;"><strong>Bs. {{ number_format($invoice->total_amount, 2, ',', '.') }}</strong></td>
-            </tr>
-        </table>
+        <div class="totals">
+            <table>
+                <tr>
+                    <th style="border:none;">Subtotal Exento:</th>
+                    <td style="border:none;">Bs. {{ number_format($invoice->exempt_amount, 2, ',', '.') }}</td>
+                </tr>
+                <tr>
+                    <th style="border:none;">IVA (0%):</th>
+                    <td style="border:none;">Bs. 0,00</td>
+                </tr>
+                
+                @if($invoice->igtf_amount > 0)
+                <tr>
+                    <th style="border:none;">IGTF (3%):</th>
+                    <td style="border:none;">Bs. {{ number_format($invoice->igtf_amount, 2, ',', '.') }}</td>
+                </tr>
+                @endif
+
+                <tr style="background-color: #f4f4f4;">
+                    <th style="font-size: 15px;">TOTAL A PAGAR:</th>
+                    <td style="font-size: 15px;"><strong>Bs. {{ number_format($invoice->total_amount, 2, ',', '.') }}</strong></td>
+                </tr>
+            </table>
+        </div>
+        <div class="clear"></div>
     </div>
 
-    <div class="clear"></div>
-
     <div class="footer-note">
-        <p>Gracias por su compra.<br>
+        <p>Gracias por su compra.</p>
     </div>
 
 </body>
