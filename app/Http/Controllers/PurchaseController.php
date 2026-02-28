@@ -29,16 +29,46 @@ class PurchaseController extends Controller
     {
         $perPage = $request->input('per_page', 10);
         
-        $purchases = Purchase::with(['supplier', 'products']) 
-                             ->orderBy('date', 'desc')
-                             ->paginate($perPage);
+        // 1. Iniciamos la consulta base con las relaciones
+        $query = Purchase::with(['supplier', 'products']);
 
+        // 2. Buscador Abierto (Código de compra, Nombre del proveedor o RIF)
+        if ($request->filled('search')) {
+            $searchTerm = $request->input('search');
+            
+            $query->where(function ($q) use ($searchTerm) {
+                // Buscamos en la tabla compras
+                $q->where('code', 'like', "%{$searchTerm}%")
+                  // O buscamos en la tabla proveedores asociada
+                  ->orWhereHas('supplier', function ($supplierQuery) use ($searchTerm) {
+                      $supplierQuery->where('name', 'like', "%{$searchTerm}%")
+                                    ->orWhere('rif', 'like', "%{$searchTerm}%");
+                  });
+            });
+        }
+
+        // 3. Filtro por Rango de Fechas (Basado en la fecha de emisión 'date')
+        if ($request->filled('start_date')) {
+            $query->where('date', '>=', $request->input('start_date'));
+        }
+
+        if ($request->filled('end_date')) {
+            $query->where('date', '<=', $request->input('end_date'));
+        }
+
+        // 4. Ordenamiento y Paginación
+        $purchases = $query->orderBy('date', 'desc')
+                           ->paginate($perPage);
+
+        // 5. Transformación de la colección (Accessors y Hiddens)
         $purchases->getCollection()->each(function ($purchase) {
             // Agregamos ambos totales generados por los accessors
             $purchase->append(['total', 'total_ves', 'document_url']);
             $purchase->makeHidden('products'); 
 
-            $purchase->supplier->makeHidden(['created_at', 'updated_at']);
+            if ($purchase->supplier) {
+                $purchase->supplier->makeHidden(['created_at', 'updated_at']);
+            }
         });
 
         $purchases->makeHidden(['created_at', 'updated_at']);

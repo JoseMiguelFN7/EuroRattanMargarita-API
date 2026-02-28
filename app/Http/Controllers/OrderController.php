@@ -261,12 +261,14 @@ class OrderController extends Controller
 
     public function showByCode($code)
     {
+        // 1. Añadimos 'payments.currency' para poder saber la moneda original de cada pago
         $order = Order::with([
             'user:id,name,email,cellphone',
             'products',
             'payments' => function ($query) {
                 $query->latest(); 
             },
+            'payments.currency',
             'payments.paymentMethod' 
         ])->where('code', $code)->first();
 
@@ -307,16 +309,42 @@ class OrderController extends Controller
                 ];
             }),
             'payments' => $order->payments->map(function ($payment) {
+                
+                // Mapeo inteligente multimoneda
+                $amount = (float) $payment->amount;
+                $rate = (float) $payment->exchange_rate;
+                
+                $currencyCode = $payment->currency ? strtoupper($payment->currency->code) : 'USD';
+                
+                $montoUsd = 0;
+                $montoBs = 0;
+
+                // Hacemos el cruce correcto dependiendo de la moneda de origen
+                if ($currencyCode === 'VES') {
+                    $montoBs = $amount;
+                    $montoUsd = $rate > 0 ? ($amount / $rate) : 0;
+                } else {
+                    $montoUsd = $amount;
+                    $montoBs = $amount * $rate;
+                }
+
                 return [
                     'id'               => $payment->id,
                     'status'           => $payment->status,
-                    'amount'           => $payment->amount,
                     'reference_number' => $payment->reference_number,
                     'proof_image'      => $payment->proof_image ? asset('storage/' . $payment->proof_image) : null,
-                    'method' => $payment->paymentMethod ? [
+                    'method'           => $payment->paymentMethod ? [
                         'name'  => $payment->paymentMethod->name,
                         'image' => $payment->paymentMethod->image ? asset('storage/' . $payment->paymentMethod->image) : null,
                     ] : null,
+                    
+                    // Datos claros para la interfaz
+                    'original_amount'   => $amount,
+                    'original_currency' => $currencyCode,
+                    'amount_usd'        => round($montoUsd, 2),
+                    'total_ves'         => round($montoBs, 2),
+                    'rate'              => $rate,
+                    'created_at'        => $payment->created_at?->format('Y-m-d H:i:s'),
                 ];
             }),
         ];
@@ -326,12 +354,14 @@ class OrderController extends Controller
 
     public function showMyOrderByCode($code)
     {
+        // 1. Añadimos 'payments.currency' a la carga ansiosa
         $order = Order::with([
             'user:id,name,email,cellphone',
             'products',
             'payments' => function ($query) {
                 $query->latest(); 
             },
+            'payments.currency',
             'payments.paymentMethod' 
         ])->where('code', $code)->first();
 
@@ -345,12 +375,14 @@ class OrderController extends Controller
             ], 403);
         }
 
+        // 2. Cálculo del subtotal
         $subtotalCalculated = $order->products->sum(function ($product) {
             $base = $product->pivot->quantity * $product->pivot->price;
             $percent = $product->pivot->discount ?? 0;
             return $base * (1 - ($percent / 100));
         });
 
+        // 3. Respuesta Final Limpia
         $cleanOrder = [
             'id'            => $order->id,
             'code'          => $order->code,
@@ -360,7 +392,8 @@ class OrderController extends Controller
             'notes'         => $order->notes,
             'subtotal_usd'  => round($subtotalCalculated, 2),
             'igtf_amount'   => (float) $order->igtf_amount,
-            'total_usd'     => round($subtotalCalculated + $order->igtf_amount, 2),
+            'total_usd'     => round($subtotalCalculated + (float) $order->igtf_amount, 2),
+            
             'user' => [
                 'name'      => $order->user->name,
                 'email'     => $order->user->email,
@@ -378,16 +411,42 @@ class OrderController extends Controller
                 ];
             }),
             'payments' => $order->payments->map(function ($payment) {
+                
+                // Mapeo inteligente multimoneda
+                $amount = (float) $payment->amount;
+                $rate = (float) $payment->exchange_rate;
+                
+                $currencyCode = $payment->currency ? strtoupper($payment->currency->code) : 'USD';
+                
+                $montoUsd = 0;
+                $montoBs = 0;
+
+                // Hacemos el cruce correcto dependiendo de la moneda de origen
+                if ($currencyCode === 'VES') {
+                    $montoBs = $amount;
+                    $montoUsd = $rate > 0 ? ($amount / $rate) : 0;
+                } else {
+                    $montoUsd = $amount;
+                    $montoBs = $amount * $rate;
+                }
+
                 return [
                     'id'               => $payment->id,
                     'status'           => $payment->status,
-                    'amount'           => $payment->amount,
                     'reference_number' => $payment->reference_number,
                     'proof_image'      => $payment->proof_image ? asset('storage/' . $payment->proof_image) : null,
-                    'method' => $payment->paymentMethod ? [
+                    'method'           => $payment->paymentMethod ? [
                         'name'  => $payment->paymentMethod->name,
                         'image' => $payment->paymentMethod->image ? asset('storage/' . $payment->paymentMethod->image) : null,
                     ] : null,
+                    
+                    // Datos claros para la interfaz del cliente
+                    'original_amount'   => $amount,
+                    'original_currency' => $currencyCode,
+                    'amount_usd'        => round($montoUsd, 2),
+                    'total_ves'         => round($montoBs, 2),
+                    'rate'              => $rate,
+                    'created_at'        => $payment->created_at?->format('Y-m-d H:i:s'),
                 ];
             }),
         ];

@@ -17,17 +17,14 @@ class PaymentController extends Controller
         // 1. Eager loading base
         $query = Payment::with(['order.user', 'paymentMethod', 'currency']);
 
-        // 2. Buscador Abierto (Referencia de pago, Código de orden o Nombre de usuario)
+        // 2. Buscador Abierto
         if ($request->filled('search')) {
             $searchTerm = $request->input('search');
             
             $query->where(function($q) use ($searchTerm) {
-                // Buscamos en el número de referencia del pago
                 $q->where('reference_number', 'like', "%{$searchTerm}%")
-                  // Buscamos en el código de la orden asociada
                   ->orWhereHas('order', function ($orderQuery) use ($searchTerm) {
                       $orderQuery->where('code', 'like', "%{$searchTerm}%")
-                                 // Buscamos en el nombre del usuario dueño de la orden
                                  ->orWhereHas('user', function ($userQuery) use ($searchTerm) {
                                      $userQuery->where('name', 'like', "%{$searchTerm}%");
                                  });
@@ -35,7 +32,7 @@ class PaymentController extends Controller
             });
         }
 
-        // 3. Filtros Exactos (Status y Método de Pago)
+        // 3. Filtros Exactos
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
         }
@@ -44,7 +41,7 @@ class PaymentController extends Controller
             $query->where('payment_method_id', $request->input('payment_method_id'));
         }
 
-        // 4. Filtro por Rango de Fechas (Basado en created_at)
+        // 4. Filtro por Rango de Fechas
         if ($request->filled('start_date')) {
             $startDate = Carbon::parse($request->input('start_date'))->startOfDay();
             $query->where('created_at', '>=', $startDate);
@@ -62,9 +59,21 @@ class PaymentController extends Controller
                 
                 $amount = (float) $payment->amount;
                 $rate = (float) $payment->exchange_rate;
+                
+                // Determinamos la moneda del pago
+                $currencyCode = $payment->currency ? strtoupper($payment->currency->code) : 'USD';
+                
+                $montoUsd = 0;
+                $montoBs = 0;
 
-                $montoUsd = $amount;
-                $montoBs = ($amount * $rate);
+                // Hacemos el cruce correcto dependiendo de la moneda de origen
+                if ($currencyCode === 'VES') {
+                    $montoBs = $amount;
+                    $montoUsd = $rate > 0 ? ($amount / $rate) : 0;
+                } else {
+                    $montoUsd = $amount;
+                    $montoBs = $amount * $rate;
+                }
 
                 return [
                     'id' => $payment->id,
@@ -79,12 +88,18 @@ class PaymentController extends Controller
                     'proof_image' => $payment->proof_image_url,
                     'reference_number' => $payment->reference_number,
                     'method' => [
-                        'id' => $payment->paymentMethod?->id, // Te agregué el ID por si lo necesitas en el front
+                        'id' => $payment->paymentMethod?->id,
                         'name' => $payment->paymentMethod?->name
                     ],
-                    'amount' => round($montoUsd, 2),
-                    'rate' => $rate,
-                    'total_ves' => round($montoBs, 2),
+                    
+                    // --- NUEVOS CAMPOS FORMATEADOS ---
+                    'original_amount'   => $amount,
+                    'original_currency' => $currencyCode,
+                    
+                    'amount_usd' => round($montoUsd, 2), // Para vistas o reportes en dólares
+                    'total_ves'  => round($montoBs, 2),  // Para vistas o reportes en bolívares
+                    'rate'       => $rate,
+                    
                     'status' => $payment->status,
                     'created_at' => $payment->created_at?->format('Y-m-d H:i:s'),
                 ];
