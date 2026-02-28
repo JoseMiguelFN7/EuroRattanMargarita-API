@@ -5,7 +5,11 @@ meta {
 }
 
 get {
-  url: {{host}}order/auth/paymentDetails/code/
+  url: {{host}}order/auth/paymentDetails/code/eJehYI4MpQ
   body: none
-  auth: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
 }

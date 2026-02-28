@@ -500,20 +500,14 @@ class ProductController extends Controller
                 // Precio decidido por la definición del color
                 $price = (!$isNatural) ? ($precios['pvp_color'] ?? $precios['pvp_natural']) : $precios['pvp_natural'];
 
-                // Stock calculado vía cuello de botella (igual que el set, o similar)
-                // OJO: Si usas la misma lógica de "colores disponibles" para muebles individuales:
-                $coloresDisponibles = $product->furniture->calcularColoresDisponibles(); // Asumo que el mueble también tiene esto o similar
-                
-                // Si el mueble usa lógica simple de stocks (aunque dijiste que no tienen stock físico directo):
-                // Ajusta esto según cómo calculas disponibilidad de un mueble individual.
-                // Si usas la misma función que el Set:
-                 if ($variantId) {
-                    $colorData = collect($coloresDisponibles)->firstWhere('id', $variantId);
-                    $stockAvailable = $colorData ? $colorData['stock'] : 0;
+                // Stock calculado leyendo directamente la relación stocks (vista product_stocks)
+                if ($variantId) {
+                    $stockData = $product->stocks->where('colorID', $variantId)->first();
+                    $stockAvailable = $stockData ? $stockData->stock : 0;
                 } else {
-                    $stockAvailable = 0;
+                    $stockAvailable = 0; // Obligar a elegir color
                 }
-            } 
+            }
             
             // --- LÓGICA PARA MATERIALES ---
             elseif ($product->material) {
