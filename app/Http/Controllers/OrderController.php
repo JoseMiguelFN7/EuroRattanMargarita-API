@@ -91,7 +91,8 @@ class OrderController extends Controller
     public function myOrders(Request $request)
     {
         $userId = auth('sanctum')->id();
-        $query = Order::with(['products', 'invoice'])->where('user_id', $userId);
+        
+        $query = Order::with(['products', 'invoice', 'payments.currency'])->where('user_id', $userId);
 
         if ($request->filled('search')) {
             $query->where('code', 'like', '%' . $request->input('search') . '%');
@@ -114,11 +115,57 @@ class OrderController extends Controller
         $orders = $query->latest() 
             ->paginate($request->input('per_page', 10)) 
             ->through(function ($order) {
+                
+                // 1. Cálculo del total de la orden en USD
                 $subtotalCalculated = $order->products->sum(function ($product) {
                     $base = $product->pivot->quantity * $product->pivot->price;
                     $percent = $product->pivot->discount ?? 0;
                     return $base * (1 - ($percent / 100));
                 });
+                
+                $totalOrderUsd = round($subtotalCalculated + (float) $order->igtf_amount, 2);
+
+                // --- 2. NUEVAS REGLAS DE NEGOCIO (Estados finales) ---
+                if (in_array($order->status, ['completed', 'cancelled'])) {
+                    $missingAmount = null;
+                    $missingCurrency = null;
+                } else {
+                    // Filtramos solo los pagos activos
+                    $activePayments = $order->payments->whereIn('status', ['pending', 'verified']);
+                    
+                    $paymentCurrency = 'USD'; // Por defecto
+                    $totalPaid = 0; // Sumatoria bruta sin importar la moneda
+                    $orderRate = (float) $order->exchange_rate;
+
+                    if ($activePayments->isNotEmpty()) {
+                        $firstPayment = $activePayments->first();
+                        if ($firstPayment->currency) {
+                            $paymentCurrency = strtoupper($firstPayment->currency->code);
+                        }
+
+                        // Sumamos el monto BRUTO tal cual lo introdujo el cliente
+                        $totalPaid = $activePayments->sum(function($p) {
+                            return (float) $p->amount;
+                        });
+                    }
+
+                    // Calculamos la diferencia dependiendo matemáticamente de la moneda
+                    if ($paymentCurrency === 'VES') {
+                        // --- MATEMÁTICA DIRECTA EN BOLÍVARES ---
+                        $totalOrderBs = round($totalOrderUsd * $orderRate, 2);
+                        $remainingBs = $totalOrderBs - $totalPaid;
+                        
+                        $missingAmount = $remainingBs <= 0 ? null : round($remainingBs, 2);
+                        $missingCurrency = $missingAmount ? 'VES' : null;
+                        
+                    } else {
+                        // --- MATEMÁTICA DIRECTA EN DÓLARES ---
+                        $remainingUsd = $totalOrderUsd - $totalPaid;
+                        
+                        $missingAmount = $remainingUsd <= 0 ? null : round($remainingUsd, 2);
+                        $missingCurrency = $missingAmount ? 'USD' : null;
+                    }
+                }
 
                 $invoiceLink = null;
                 if ($order->invoice && $order->invoice->pdf_url) {
@@ -130,11 +177,16 @@ class OrderController extends Controller
                     'code'          => $order->code,
                     'status'        => $order->status,
                     'created_at'    => $order->created_at?->format('Y-m-d H:i:s'),
-                    'exchange_rate' => $order->exchange_rate,
+                    'exchange_rate' => (float) $order->exchange_rate,
                     'notes'         => $order->notes,
                     'subtotal_usd'  => round($subtotalCalculated, 2),
                     'igtf_amount'   => (float) $order->igtf_amount,
-                    'total_usd'     => round($subtotalCalculated + $order->igtf_amount, 2),
+                    'total_usd'     => $totalOrderUsd,
+                    
+                    // Aquí mandamos null o los montos exactos
+                    'missing_amount'   => $missingAmount,
+                    'missing_currency' => $missingCurrency,
+
                     'invoice_download_link' => $invoiceLink,
                 ];
             });
@@ -358,17 +410,20 @@ class OrderController extends Controller
             'products.*.price'      => 'required|numeric|min:0',
             'products.*.discount'   => 'nullable|numeric|min:0|max:100',
 
-            'payment_amount'      => 'nullable|numeric|min:0.01',
-            'payment_currency_id' => 'required_with:payment_amount|exists:currencies,id',
-            'payment_method_id'   => 'required_with:payment_amount|exists:payment_methods,id',
-            'payment_reference'   => 'nullable|string|max:50',
-            'payment_proof'       => 'nullable|image|mimes:jpeg,png,jpg|max:2048'
+            // --- NUEVA VALIDACIÓN PARA MÚLTIPLES PAGOS ---
+            'payments'                      => 'nullable|array',
+            'payments.*.amount'             => 'required_with:payments|numeric|min:0.01',
+            'payments.*.currency_id'        => 'required_with:payments|exists:currencies,id',
+            'payment_method_ids'            => 'required_with:payments|array', // Validar IGTF
+            'payments.*.payment_method_id'  => 'required_with:payments|exists:payment_methods,id',
+            'payments.*.reference_number'   => 'nullable|string|max:50',
+            'payments.*.proof_image'        => 'nullable|image|mimes:jpeg,png,jpg|max:2048'
         ]);
 
         if ($validator->fails()) return response()->json(['errors' => $validator->errors()], 422);
 
         DB::beginTransaction();
-        $uploadedPath = null;
+        $uploadedPaths = []; // Guardamos rutas por si hay rollback
 
         try {
             $subtotal = 0;
@@ -378,15 +433,19 @@ class OrderController extends Controller
                 $subtotal += $lineTotal * (1 - ($discountPercent / 100));
             }
 
+            // --- CÁLCULO DE IGTF (Leyendo el primer método de pago si existe) ---
             $igtfAmount = 0;
-            if ($request->has('payment_method_id')) {
-                $paymentMethod = PaymentMethod::find($request->payment_method_id);
+            if ($request->has('payments') && count($request->payments) > 0) {
+                // Como todos aplican o no, basta con chequear el primero
+                $firstPaymentMethodId = $request->payments[0]['payment_method_id'];
+                $paymentMethod = PaymentMethod::find($firstPaymentMethodId);
+                
                 if ($paymentMethod && $paymentMethod->applies_igtf) {
                     $igtfAmount = round($subtotal * 0.03, 2);
                 }
             }
 
-            $initialStatus = $request->has('payment_amount') ? 'verifying_payment' : 'pending_payment';
+            $initialStatus = $request->has('payments') ? 'verifying_payment' : 'pending_payment';
 
             $order = Order::create([
                 'user_id'       => $request->user_id,
@@ -397,7 +456,6 @@ class OrderController extends Controller
             ]);
 
             $now = $order->created_at;
-
             $productIds = collect($request->products)->pluck('id');
             $productsData = Product::with('set.furnitures')->whereIn('id', $productIds)->get()->keyBy('id');
 
@@ -412,7 +470,6 @@ class OrderController extends Controller
                     'variant_id' => $variantId,
                 ]);
 
-                // --- NUEVO: Usamos el InventoryService para salidas con bloqueo ---
                 if ($productModel->set && $productModel->set->furnitures) {
                     foreach ($productModel->set->furnitures as $furniture) {
                         $qtyPerSet = $furniture->pivot->quantity;
@@ -437,21 +494,31 @@ class OrderController extends Controller
                 }
             }
 
-            if ($request->has('payment_amount')) {
-                if ($request->hasFile('payment_proof')) {
-                    $uploadedPath = $request->file('payment_proof')->store('payments', 'public');
-                }
+            // --- PROCESAR EL ARREGLO DE PAGOS ---
+            if ($request->has('payments')) {
+                // Notar que en Laravel, cuando mandas archivos en un arreglo de objetos desde FormData,
+                // la estructura de request->file() puede variar. Asumimos que lo envías correctamente.
+                foreach ($request->payments as $index => $paymentData) {
+                    $path = null;
+                    
+                    // Manejo del archivo comprobante
+                    if ($request->hasFile("payments.{$index}.proof_image")) {
+                        $file = $request->file("payments.{$index}.proof_image");
+                        $path = $file->store('payments', 'public');
+                        $uploadedPaths[] = $path; // Guardamos para borrar en caso de error
+                    }
 
-                Payment::create([
-                    'order_id'          => $order->id,
-                    'amount'            => $request->payment_amount,
-                    'currency_id'       => $request->payment_currency_id,
-                    'payment_method_id' => $request->payment_method_id,
-                    'reference_number'  => $request->payment_reference,
-                    'proof_image'       => $uploadedPath,
-                    'status'            => 'pending',
-                    'exchange_rate'     => $request->exchange_rate
-                ]);
+                    Payment::create([
+                        'order_id'          => $order->id,
+                        'amount'            => $paymentData['amount'],
+                        'currency_id'       => $paymentData['currency_id'],
+                        'payment_method_id' => $paymentData['payment_method_id'],
+                        'reference_number'  => $paymentData['reference_number'] ?? null,
+                        'proof_image'       => $path,
+                        'status'            => 'pending',
+                        'exchange_rate'     => $request->exchange_rate // Usamos la misma tasa de la orden
+                    ]);
+                }
             }
 
             DB::commit();
@@ -460,8 +527,11 @@ class OrderController extends Controller
 
         } catch (\Exception $e) {
             DB::rollback();
-            if ($uploadedPath && Storage::disk('public')->exists($uploadedPath)) {
-                Storage::disk('public')->delete($uploadedPath);
+            // Borrar todas las imágenes que se subieron antes de que fallara
+            foreach ($uploadedPaths as $path) {
+                if (Storage::disk('public')->exists($path)) {
+                    Storage::disk('public')->delete($path);
+                }
             }
             return response()->json([
                 'message' => 'Error al crear la orden.',
@@ -547,5 +617,120 @@ class OrderController extends Controller
                 'trace' => $e->getTraceAsString()
             ], 500);
         }
+    }
+
+    /**
+     * Obtiene la información necesaria para que el cliente reporte nuevos pagos
+     * de una orden que quedó pendiente o con pagos rechazados.
+     */
+    public function getPaymentDetails($code)
+    {
+        // 1. Buscamos la orden por código con sus relaciones
+        $order = Order::with(['products', 'payments.currency', 'payments.paymentMethod'])
+            ->where('code', $code)
+            ->first();
+
+        if (!$order) {
+            return response()->json(['message' => 'Orden no encontrada'], 404);
+        }
+
+        // 2. Verificamos el status
+        if ($order->status !== 'pending_payment') {
+            return response()->json([
+                'message' => 'Esta orden no está en estado pendiente de pago.',
+                'current_status' => $order->status
+            ], 400);
+        }
+
+        // 3. Cálculos de montos
+        $subtotalUsd = $order->products->sum(function ($product) {
+            $base = $product->pivot->quantity * $product->pivot->price;
+            $percent = $product->pivot->discount ?? 0;
+            return $base * (1 - ($percent / 100));
+        });
+        
+        $totalOrderUsd = round($subtotalUsd + (float) $order->igtf_amount, 2);
+        $orderRate = (float) $order->exchange_rate;
+
+        // Filtramos pagos verificados (los únicos que "congelan" la moneda)
+        $verifiedPayments = $order->payments->where('status', 'verified');
+        
+        // Calculamos total pagado en USD
+        $totalPaidUsd = $verifiedPayments->sum(function($p) {
+            $amt = (float) $p->amount;
+            $rate = (float) $p->exchange_rate;
+            if ($p->currency && strtoupper($p->currency->code) === 'VES') {
+                return $rate > 0 ? ($amt / $rate) : 0;
+            }
+            return $amt;
+        });
+
+        $remainingUsd = round($totalOrderUsd - $totalPaidUsd, 2);
+
+        // 4. Lógica de Moneda Restante y Métodos de Pago
+        $missingAmount = [];
+        $allowedPaymentMethods = [];
+        
+        // Obtenemos todos los métodos de pago activos
+        $allMethods = PaymentMethod::where('is_active', true)->with('currency')->get();
+
+        if ($verifiedPayments->isNotEmpty()) {
+            // Si hay pagos aprobados, detectamos su moneda (tomamos el primero)
+            $firstVerified = $verifiedPayments->first();
+            $currencyCode = strtoupper($firstVerified->currency->code);
+            $appliesIgtf = $firstVerified->paymentMethod->applies_igtf;
+
+            if ($currencyCode === 'VES') {
+                $totalOrderBs = round($totalOrderUsd * $orderRate, 2);
+                $totalPaidBs = $verifiedPayments->sum(fn($p) => (float) $p->amount);
+                
+                $missingAmount = [
+                    'amount' => round($totalOrderBs - $totalPaidBs, 2),
+                    'currency' => 'VES'
+                ];
+                
+                // Solo permitimos métodos en Bs que NO apliquen IGTF
+                $allowedPaymentMethods = $allMethods->where('applies_igtf', false)
+                    ->filter(fn($m) => strtoupper($m->currency->code) === 'VES');
+            } else {
+                $missingAmount = [
+                    'amount' => $remainingUsd,
+                    'currency' => 'USD'
+                ];
+                // Solo permitimos métodos en $ o que apliquen IGTF
+                $allowedPaymentMethods = $allMethods->filter(function($m) use ($appliesIgtf) {
+                    return $m->applies_igtf === $appliesIgtf || strtoupper($m->currency->code) === 'USD';
+                });
+            }
+        } else {
+            // CASO: No hay pagos aprobados (todos rechazados o nueva)
+            // Enviamos opciones en ambas monedas
+            $missingAmount = [
+                'usd' => $remainingUsd,
+                'ves' => round($remainingUsd * $orderRate, 2)
+            ];
+            $allowedPaymentMethods = $allMethods;
+        }
+
+        // 5. Respuesta final
+        return response()->json([
+            'order_id'        => $order->id,
+            'order_code'      => $order->code,
+            'total_order_usd' => $totalOrderUsd,
+            'exchange_rate'   => $orderRate,
+            'missing_amount'  => $missingAmount,
+            'payment_methods' => $allowedPaymentMethods->values()->map(function($m) {
+                return [
+                    'id' => $m->id,
+                    'name' => $m->name,
+                    'currency' => $m->currency->code,
+                    'currency_id' => $m->currency->id,
+                    'applies_igtf' => $m->applies_igtf,
+                    'requires_proof' => $m->requires_proof,
+                    'bank_details' => $m->bank_details,
+                    'image' => $m->image ? asset('storage/' . $m->image) : null
+                ];
+            })
+        ]);
     }
 }

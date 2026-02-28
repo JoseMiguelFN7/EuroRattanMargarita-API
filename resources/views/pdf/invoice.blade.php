@@ -84,7 +84,7 @@
     </table>
 
     <div class="rate-info">
-        * Documento expresado en Bolívares (Bs.) calculado a una tasa de cambio de 1 USD = {{ number_format($order->exchange_rate, 2, ',', '.') }} Bs.<br>
+        * Documento expresado en Bolívares (Bs.) calculado a una tasa de cambio de 1 USD = {{ number_format($order->exchange_rate, 4, ',', '.') }} Bs.<br>
         * (E): Operación Exenta de IVA según el régimen de Puerto Libre (Estado Nueva Esparta).
     </div>
 
@@ -118,6 +118,22 @@
                     <th style="font-size: 15px;">TOTAL A PAGAR:</th>
                     <td style="font-size: 15px;"><strong>Bs. {{ number_format($invoice->total_amount, 2, ',', '.') }}</strong></td>
                 </tr>
+
+                <tr>
+                    <th style="border:none;">Monto Pagado:</th>
+                    <td style="border:none;">Bs. {{ number_format($invoice->paid_amount, 2, ',', '.') }}</td>
+                </tr>
+
+                @php
+                    $vuelto = $invoice->paid_amount - $invoice->total_amount;
+                @endphp
+
+                @if($vuelto > 0)
+                <tr>
+                    <th style="border:none;">Vuelto a Favor:</th>
+                    <td style="border:none;"><strong>Bs. {{ number_format($vuelto, 2, ',', '.') }}</strong></td>
+                </tr>
+                @endif
             </table>
         </div>
         <div class="clear"></div>

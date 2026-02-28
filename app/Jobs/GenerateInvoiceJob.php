@@ -19,31 +19,22 @@ class GenerateInvoiceJob implements ShouldQueue
 
     public $order;
 
-    /**
-     * Create a new job instance.
-     */
     public function __construct(Order $order)
     {
         $this->order = $order;
     }
 
-    /**
-     * Execute the job.
-     */
     public function handle(): void
     {
-        // 1. Cargamos las relaciones necesarias si no venían cargadas
-        $this->order->loadMissing(['user', 'products']);
+        // Forzamos la carga desde la DB para evitar el bug del caché con las monedas
+        $this->order->load(['user', 'products', 'payments.currency']);
 
-        // 2. Iniciamos la transacción de base de datos
         DB::transaction(function () {
             
-            // Seguro extra por si el Job se encoló dos veces por error
             if ($this->order->invoice()->exists()) {
                 return;
             }
 
-            // --- A. BLOQUEO PESIMISTA Y GENERACIÓN DE CONSECUTIVOS ---
             $lastInvoice = Invoice::lockForUpdate()->orderBy('invoice_number', 'desc')->first();
             $nextNumber = $lastInvoice ? (intval($lastInvoice->invoice_number) + 1) : 1;
             $formattedNumber = str_pad($nextNumber, 8, '0', STR_PAD_LEFT);
@@ -51,30 +42,57 @@ class GenerateInvoiceJob implements ShouldQueue
             $invoiceNumber = $formattedNumber; 
             $controlNumber = '00-' . $formattedNumber;
 
-            // --- B. CÁLCULO DE TOTALES (EN BOLÍVARES) ---
-            $totalAmountBs = 0;
-            $rate = $this->order->exchange_rate;
+            // --- CÁLCULO DE TOTALES DE LA ORDEN ---
+            $totalOrderUsd = 0;
+            $orderRate = (float) $this->order->exchange_rate;
 
             foreach ($this->order->products as $product) {
                 $qty = $product->pivot->quantity;
                 $price = $product->pivot->price;
-                $discountPercent = $product->pivot->discount ?? 0; // Ahora es un % (0-100)
+                $discountPercent = $product->pivot->discount ?? 0;
                 
-                // Calculamos el monto base en USD primero
                 $lineSubtotalUsd = $qty * $price;
-                // Aplicamos el porcentaje de descuento
                 $discountAmountUsd = $lineSubtotalUsd * ($discountPercent / 100);
-                $finalLineUsd = $lineSubtotalUsd - $discountAmountUsd;
-
-                // Convertimos a Bolívares al final
-                $totalAmountBs += ($finalLineUsd * $rate);
+                $totalOrderUsd += ($lineSubtotalUsd - $discountAmountUsd);
             }
 
-            // --- NUEVO: CÁLCULO DEL IGTF EN BOLÍVARES ---
-            // Tomamos el IGTF en USD que guardamos en la orden y lo multiplicamos por la tasa
-            $igtfBs = $this->order->igtf_amount * $rate;
+            $igtfUsd = (float) $this->order->igtf_amount;
 
-            // --- C. CREAR EL REGISTRO ---
+            $totalAmountBs = $totalOrderUsd * $orderRate;
+            $igtfBs = $igtfUsd * $orderRate;
+            $granTotalOrderBs = $totalAmountBs + $igtfBs;
+
+            // --- CÁLCULO DE LO QUE PAGÓ EL CLIENTE EN BOLÍVARES ---
+            $verifiedPayments = $this->order->payments->where('status', 'verified');
+            
+            $paymentCurrency = 'USD';
+            $totalPaid = 0; 
+            
+            if ($verifiedPayments->isNotEmpty()) {
+                $firstPayment = $verifiedPayments->first();
+                
+                if ($firstPayment->currency) {
+                    $paymentCurrency = strtoupper($firstPayment->currency->code);
+                } else {
+                    if ((float)$firstPayment->exchange_rate > 10) {
+                        $paymentCurrency = 'VES';
+                    }
+                }
+
+                $totalPaid = $verifiedPayments->sum(function($p) {
+                    return (float) $p->amount;
+                });
+            }
+
+            // Aquí convertimos lo pagado a Bolívares dependiendo de la moneda de origen
+            $totalPaidBs = 0;
+            if ($paymentCurrency === 'VES') {
+                $totalPaidBs = $totalPaid;
+            } else {
+                $totalPaidBs = $totalPaid * $orderRate;
+            }
+
+            // --- CREAR EL REGISTRO DE LA FACTURA ---
             $invoice = Invoice::create([
                 'order_id'        => $this->order->id,
                 'invoice_number'  => $invoiceNumber,
@@ -83,21 +101,21 @@ class GenerateInvoiceJob implements ShouldQueue
                 'client_document' => $this->order->user->document ?? 'V-00000000', 
                 'client_address'  => $this->order->user->address ?? 'Porlamar, Nueva Esparta',
                 
-                // Distribución de montos (En Bolívares)
-                'exempt_amount'   => round($totalAmountBs, 2), // Solo el costo de los productos
+                'exempt_amount'   => round($totalAmountBs, 2), 
                 'tax_base_amount' => 0,
                 'tax_percentage'  => 0,
                 'tax_amount'      => 0,
-                'igtf_amount'     => round($igtfBs, 2), // El impuesto guardado explícitamente
+                'igtf_amount'     => round($igtfBs, 2), 
+                'total_amount'    => round($granTotalOrderBs, 2),
                 
-                // El Total final de la factura suma los productos exentos + el IGTF
-                'total_amount'    => round($totalAmountBs + $igtfBs, 2),
+                'paid_amount'     => round($totalPaidBs, 2), // <-- GUARDAMOS LO QUE PAGÓ
+
                 'emitted_at'      => now(),
             ]);
 
             $invoice->refresh();
 
-            // --- D. GENERACIÓN DEL PDF ---
+            // --- GENERACIÓN DEL PDF ---
             $pdf = Pdf::loadView('pdf.invoice', [
                 'invoice' => $invoice,
                 'order'   => $this->order

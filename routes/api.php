@@ -161,6 +161,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Rutas para el CRUD de Ordenes
     Route::get('/orders', [\App\Http\Controllers\OrderController::class, 'index']); // Obtener todas las ordenes
     Route::get('/orders/auth', [\App\Http\Controllers\OrderController::class, 'myOrders']); // Obtener todas las ordenes del usuario autenticado
+    Route::get('/order/auth/paymentDetails/code/{code}', [\App\Http\Controllers\OrderController::class, 'getPaymentDetails']); // Obtener los detalles para reportar nuevos pagos en una orden del cliente
     Route::get('/order/auth/code/{code}', [\App\Http\Controllers\OrderController::class, 'showMyOrderByCode']); // Obtener una orden por codigo validando que sea del usuario autenticado
     Route::get('/order/code/{code}', [\App\Http\Controllers\OrderController::class, 'showByCode']); // Obtener una orden por codigo
     Route::post('/order/cancel/{id}', [\App\Http\Controllers\OrderController::class, 'cancel']); // Cancelar orden
@@ -212,6 +213,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // Rutas para pagos
     Route::get('/payments', [\App\Http\Controllers\PaymentController::class, 'index']); // Obtener todos los pagos con paginacion
+    Route::post('/payments', [\App\Http\Controllers\PaymentController::class, 'storeMany']); // Crear varios pagos de una orden
     Route::post('/payment', [\App\Http\Controllers\PaymentController::class, 'store']); // Crear pago
     Route::post('/payment/{id}/verify', [\App\Http\Controllers\PaymentController::class, 'verify']); // Aprobar/Rechazar pago
 

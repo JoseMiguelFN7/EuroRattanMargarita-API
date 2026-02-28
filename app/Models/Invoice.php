@@ -22,7 +22,8 @@ class Invoice extends Model
         'pdf_url',
         'emitted_at',
         'igtf_amount',
-        'verification_token'
+        'verification_token',
+        'paid_amount'
     ];
 
     protected $casts = [
@@ -33,6 +34,7 @@ class Invoice extends Model
         'tax_amount' => 'decimal:2',
         'total_amount' => 'decimal:2',
         'igtf_amount' => 'decimal:2',
+        'paid_amount' => 'decimal:2'
     ];
 
     protected static function booted()
