@@ -425,116 +425,150 @@ class ProductController extends Controller
         $request->validate([
             'items' => 'required|array',
             'items.*.productId' => 'required|exists:products,id',
-            'items.*.variantId' => 'nullable|integer', // Esto es el ID de la tabla colors
+            'items.*.variantId' => 'nullable|integer', 
             'items.*.quantity' => 'required|integer|min:1',
         ]);
 
         $response = [];
 
-        // ---------------------------------------------------------
-        // 1. MAPEO DE COLORES (LA SOLUCIÓN AL BUG)
-        // ---------------------------------------------------------
-        // Extraemos todos los IDs de variantes solicitados en el carrito
+        // 1. MAPEO DE COLORES
         $variantIds = collect($request->items)->pluck('variantId')->filter()->unique();
+        $colorsMap = \App\Models\Color::whereIn('id', $variantIds)->pluck('is_natural', 'id');
 
-        // Consultamos la tabla 'colors' directamente.
-        // Obtenemos un array simple: [ ID_COLOR => IS_NATURAL (bool) ]
-        // Esto es independiente de si hay stock o no.
-        $colorsMap = Color::whereIn('id', $variantIds)->pluck('is_natural', 'id');
-
-        // ---------------------------------------------------------
         // 2. Carga de Productos
-        // ---------------------------------------------------------
         $productRelations = [
             'images',
-            'stocks',         // Solo para materiales
+            'stocks',         // Para materiales y muebles individuales
             'material',
             'furniture.materials', 
             'furniture.labors',
-            'set.furnitures.product.stocks', // Para calcular el cuello de botella del set
+            'set.furnitures.product.stocks', // CRÍTICO: Para el cuello de botella del set
             'set.furnitures.materials',
             'set.furnitures.labors'
         ];
 
+        $productIds = collect($request->items)->pluck('productId')->unique();
+        $productsData = \App\Models\Product::with($productRelations)->whereIn('id', $productIds)->get()->keyBy('id');
+
+        // --- LA SOLUCIÓN AL PROBLEMA DE INVENTARIO COMPARTIDO ---
+        // Aquí llevaremos la cuenta de cuánto stock físico vamos "consumiendo"
+        // Estructura: [ productId => [ variantId => cantidad_reservada ] ]
+        $allocatedStock = [];
+
+        // Función Helper para obtener el stock físico real (para no repetir código)
+        $getTotalStock = function ($productModel, $variantId, $isMaterial = false) {
+            if ($isMaterial) {
+                if ($variantId) {
+                    $stockData = $productModel->stocks->where('colorID', $variantId)->first();
+                    return $stockData ? $stockData->stock : 0;
+                } else {
+                    return $productModel->stocks->sum('stock');
+                }
+            } else {
+                if ($variantId) {
+                    $stockData = $productModel->stocks->where('colorID', $variantId)->first();
+                    return $stockData ? $stockData->stock : 0;
+                }
+                return 0; // Muebles siempre requieren color
+            }
+        };
+
         foreach ($request->items as $item) {
-            $product = Product::with($productRelations)->find($item['productId']);
-            
+            $product = $productsData[$item['productId']] ?? null;
             if (!$product) continue;
 
-            $variantId = $item['variantId'];
+            $variantId = $item['variantId'] ?? null;
+            $allocKey = $variantId ?? 'all'; // Llave para el array de reservas
+            $reqQty = (int) $item['quantity'];
             
-            // ---------------------------------------------------------
-            // 3. DETERMINAR PROPIEDAD DEL PRECIO (SIN MIRAR STOCK)
-            // ---------------------------------------------------------
-            // Si hay variantId, buscamos en nuestro mapa maestro. 
-            // Si no existe variantId, asumimos que es Natural.
             $isNatural = $variantId ? ($colorsMap[$variantId] ?? true) : true;
-
+            
             $price = 0;
-            $stockAvailable = 0;
+            $maxCanBuy = 0; // Cuántos de ESTE item puede llevar basándonos en lo que queda libre
 
             // --- LÓGICA PARA JUEGOS (SETS) ---
             if ($product->set) {
-                // Precios base del set
                 $precios = $product->set->calcularPrecios();
-                
-                // Aquí decidimos el precio solo basándonos en el COLOR, no en el stock
                 $price = (!$isNatural) ? ($precios['pvp_color'] ?? $precios['pvp_natural']) : $precios['pvp_natural'];
 
-                // Ahora calculamos stock (Cuello de Botella)
-                $coloresDisponibles = $product->set->calcularColoresDisponibles();
-                
                 if ($variantId) {
-                    // Buscamos si es posible fabricar este color específico
-                    $colorData = collect($coloresDisponibles)->firstWhere('id', $variantId);
-                    $stockAvailable = $colorData ? $colorData['stock'] : 0;
+                    $maxSetsPossible = 999999;
+                    
+                    // Recorremos cada mueble físico que conforma el set
+                    foreach ($product->set->furnitures as $furniture) {
+                        $fProduct = $furniture->product; // El producto físico real
+                        
+                        $fTotalStock = $getTotalStock($fProduct, $variantId, false);
+                        $fAllocated  = $allocatedStock[$fProduct->id][$allocKey] ?? 0;
+                        $fRemaining  = max(0, $fTotalStock - $fAllocated); // Stock libre
+
+                        $qtyPerSet = $furniture->pivot->quantity;
+                        $possible  = $qtyPerSet > 0 ? floor($fRemaining / $qtyPerSet) : 999999;
+
+                        if ($possible < $maxSetsPossible) {
+                            $maxSetsPossible = $possible;
+                        }
+                    }
+                    $maxCanBuy = $maxSetsPossible;
                 } else {
-                    $stockAvailable = 0; // Obligar a elegir color
+                    $maxCanBuy = 0;
+                }
+
+                // Hacemos la "Reserva en memoria" solo por la cantidad que SÍ puede comprar
+                $actualAllocate = min($reqQty, $maxCanBuy);
+                if ($actualAllocate > 0) {
+                    foreach ($product->set->furnitures as $furniture) {
+                        $fProduct = $furniture->product;
+                        $qtyToDeduct = $actualAllocate * $furniture->pivot->quantity;
+                        $allocatedStock[$fProduct->id][$allocKey] = ($allocatedStock[$fProduct->id][$allocKey] ?? 0) + $qtyToDeduct;
+                    }
                 }
             } 
             
             // --- LÓGICA PARA MUEBLES ---
             elseif ($product->furniture) {
                 $precios = $product->furniture->calcularPrecios();
-                
-                // Precio decidido por la definición del color
                 $price = (!$isNatural) ? ($precios['pvp_color'] ?? $precios['pvp_natural']) : $precios['pvp_natural'];
 
-                // Stock calculado leyendo directamente la relación stocks (vista product_stocks)
-                if ($variantId) {
-                    $stockData = $product->stocks->where('colorID', $variantId)->first();
-                    $stockAvailable = $stockData ? $stockData->stock : 0;
-                } else {
-                    $stockAvailable = 0; // Obligar a elegir color
+                $fTotalStock = $getTotalStock($product, $variantId, false);
+                $fAllocated  = $allocatedStock[$product->id][$allocKey] ?? 0;
+                $maxCanBuy   = max(0, $fTotalStock - $fAllocated);
+
+                // Hacemos la reserva en memoria
+                $actualAllocate = min($reqQty, $maxCanBuy);
+                if ($actualAllocate > 0) {
+                    $allocatedStock[$product->id][$allocKey] = ($allocatedStock[$product->id][$allocKey] ?? 0) + $actualAllocate;
                 }
-            }
+            } 
             
             // --- LÓGICA PARA MATERIALES ---
             elseif ($product->material) {
-                $price = $product->material->price; // Precio fijo usualmente
+                $price = $product->material->price; 
 
-                // Materiales SÍ suelen tener stock físico directo en la vista
-                if ($variantId) {
-                    $stockData = $product->stocks->where('colorID', $variantId)->first();
-                    $stockAvailable = $stockData ? $stockData->stock : 0;
-                } else {
-                    $stockAvailable = $product->stocks->sum('stock');
+                $fTotalStock = $getTotalStock($product, $variantId, true);
+                $fAllocated  = $allocatedStock[$product->id][$allocKey] ?? 0;
+                $maxCanBuy   = max(0, $fTotalStock - $fAllocated);
+
+                // Hacemos la reserva en memoria
+                $actualAllocate = min($reqQty, $maxCanBuy);
+                if ($actualAllocate > 0) {
+                    $allocatedStock[$product->id][$allocKey] = ($allocatedStock[$product->id][$allocKey] ?? 0) + $actualAllocate;
                 }
             }
 
-            // --- Respuesta Final ---
+            // --- Respuesta Final para el Frontend ---
             $response[] = [
-                'id'              => $product->id,
-                'variant_id'      => $variantId,
-                'name'            => $product->name,
-                'image'           => $product->images->first() 
-                                     ? asset('storage/' . $product->images->first()->url) 
-                                     : null,
-                'price'           => (float) $price,
-                'discount'        => (float) $product->discount,
-                'stock_available' => (int) $stockAvailable,
-                'quantity'        => (int) $item['quantity'],
-                'insufficient_stock' => $item['quantity'] > $stockAvailable,
+                'id'                 => $product->id,
+                'variant_id'         => $variantId,
+                'name'               => $product->name,
+                'image'              => $product->images->first() 
+                                        ? asset('storage/' . $product->images->first()->url) 
+                                        : null,
+                'price'              => (float) $price,
+                'discount'           => (float) $product->discount,
+                'stock_available'    => (int) $maxCanBuy, // Stock libre *después* de procesar items anteriores
+                'quantity'           => (int) $reqQty,
+                'insufficient_stock' => $reqQty > $maxCanBuy,
             ];
         }
 
