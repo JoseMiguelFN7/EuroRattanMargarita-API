@@ -7,11 +7,14 @@ use App\Models\User;
 use App\Models\Role;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Intervention\Image\ImageManager;
 use Intervention\Image\Drivers\Gd\Driver;
 use Illuminate\Auth\AuthenticationException;
+use App\Mail\VerifyEmailOtpMail;
 
 class UserController extends Controller
 {
@@ -144,28 +147,74 @@ class UserController extends Controller
         return response()->json($user, 201); // Devuelve el usuario creado con un código de estado 201
     }
 
+    public function sendRegistrationOtp(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|unique:users,email'
+        ]);
+
+        $email = $request->email;
+
+        // --- NUEVA PROTECCIÓN ANTI-SPAM ---
+        // Verificamos si existe un "candado" de tiempo para este correo
+        if (Cache::has('otp_cooldown_' . $email)) {
+            $segundosRestantes = Cache::get('otp_cooldown_' . $email);
+            return response()->json([
+                'message' => 'Por favor, espera 60 segundos antes de solicitar otro código.'
+            ], 429); // 429 Too Many Requests
+        }
+
+        $otp = rand(100000, 999999);
+
+        // Guardamos el OTP por 10 minutos
+        Cache::put('register_otp_' . $email, $otp, now()->addMinutes(10));
+        
+        // Ponemos el "candado" por 60 segundos (1 minuto)
+        Cache::put('otp_cooldown_' . $email, true, now()->addSeconds(60));
+
+        Mail::to($email)->send(new VerifyEmailOtpMail($otp));
+
+        return response()->json([
+            'message' => 'Código enviado. Por favor revisa tu correo.'
+        ], 200);
+    }
+
     //Registrar un nuevo usuario (sin rol)
     public function register(Request $request)
     {
         // Validar los datos de la solicitud
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:9|confirmed',
-            'document' => 'required|string|max:15|unique:users',
+            'name'      => 'required|string|max:255',
+            'email'     => 'required|string|email|max:255|unique:users',
+            'password'  => 'required|string|min:9|confirmed',
+            'document'  => 'required|string|max:15|unique:users',
             'cellphone' => 'required|string|min:12|max:12|unique:users',
-            'address' => 'required|string|max:500',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048'
+            'address'   => 'required|string|max:500',
+            'image'     => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
+            
+            // --- NUEVA REGLA OTP ---
+            'otp'       => 'required|numeric|digits:6'
         ]);
 
-        //enviar error si es necesario
+        // enviar error si es necesario
         if ($validator->fails()) {
             return response()->json([
                 'errors' => $validator->errors()->messages()
             ], 422);
         }
 
-        //procesar la imagen
+        // ---------------------------------------------------------
+        // VALIDACIÓN DE SEGURIDAD OTP EN CACHÉ
+        // ---------------------------------------------------------
+        $cachedOtp = Cache::get('register_otp_' . $request->email);
+
+        if (!$cachedOtp || $cachedOtp != $request->otp) {
+            return response()->json([
+                'message' => 'El código de verificación es inválido o ha expirado.'
+            ], 400); 
+        }
+
+        // procesar la imagen (Solo si pasó la prueba del OTP)
         if ($request->hasFile('image')) {
             $image = $this->uploadPhoto($request);
         } else{
@@ -174,22 +223,26 @@ class UserController extends Controller
 
         $clientRole = Role::getClientId();
 
-        $user = new User();
-
         // Crear el nuevo usuario
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'document' => $request->document,
-            'cellphone' => $request->cellphone,
-            'address' => $request->address,
-            'role_id' => $clientRole,
-            'image' => $image
+            'name'              => $request->name,
+            'email'             => $request->email,
+            'password'          => Hash::make($request->password),
+            'document'          => $request->document,
+            'cellphone'         => $request->cellphone,
+            'address'           => $request->address,
+            'role_id'           => $clientRole,
+            'image'             => $image,
+            
+            // Ya que verificamos el OTP con éxito, lo marcamos como verificado
+            'email_verified_at' => now() 
         ]);
 
+        // Destruimos el OTP del caché por seguridad (evita que se reuse)
+        Cache::forget('register_otp_' . $request->email);
+
         // Retornar la respuesta
-        return response()->json($user, 201); // Devuelve el usuario creado con un código de estado 201
+        return response()->json($user, 201);
     }
 
     //Obtener un usuario específico

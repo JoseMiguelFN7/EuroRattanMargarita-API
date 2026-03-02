@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Http;
 
 // Rutas para el CRUD de usuarios
 Route::post('/user/login',[\App\Http\Controllers\UserController::class, 'login']); //Login
+Route::post('/user/auth/send-otp', [\App\Http\Controllers\UserController::class, 'sendRegistrationOtp']); // Enviar OTP para verificar correo
 Route::post('/user/register',[\App\Http\Controllers\UserController::class, 'register']); //Register
 
 // Rutas para el CRUD de productos
