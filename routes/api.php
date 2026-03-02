@@ -10,6 +10,9 @@ use Illuminate\Support\Facades\Http;
 Route::post('/user/login',[\App\Http\Controllers\UserController::class, 'login']); //Login
 Route::post('/user/auth/send-otp', [\App\Http\Controllers\UserController::class, 'sendRegistrationOtp']); // Enviar OTP para verificar correo
 Route::post('/user/register',[\App\Http\Controllers\UserController::class, 'register']); //Register
+Route::post('/user/auth/forgot-password/send-otp', [\App\Http\Controllers\UserController::class, 'sendResetOtp']); // Enviar OTP para flujo Olvidé Contraseña
+Route::post('/user/auth/forgot-password/verify-otp', [\App\Http\Controllers\UserController::class, 'verifyResetOtp']); // Verificar OTP para flujo Olvidé Contraseña
+Route::post('/user/auth/forgot-password/reset', [\App\Http\Controllers\UserController::class, 'resetPassword']); // Reset contraseña para flujo Olvidé Contraseña
 
 // Rutas para el CRUD de productos
 Route::get('/products', [\App\Http\Controllers\ProductController::class, 'index']); // Obtener todos los productos

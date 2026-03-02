@@ -15,6 +15,7 @@ use Intervention\Image\ImageManager;
 use Intervention\Image\Drivers\Gd\Driver;
 use Illuminate\Auth\AuthenticationException;
 use App\Mail\VerifyEmailOtpMail;
+use App\Mail\ResetPasswordOtpMail;
 
 class UserController extends Controller
 {
@@ -243,6 +244,98 @@ class UserController extends Controller
 
         // Retornar la respuesta
         return response()->json($user, 201);
+    }
+
+    // Enviar OTP para reset de contraseña
+    public function sendResetOtp(Request $request)
+    {
+        // Validamos que el correo tenga formato válido y que SÍ exista en la BD
+        $request->validate([
+            'email' => 'required|email|exists:users,email'
+        ]);
+
+        $email = $request->email;
+
+        // Protección Anti-Spam (Cooldown de 60 segundos)
+        if (Cache::has('reset_cooldown_' . $email)) {
+            return response()->json([
+                'message' => 'Espera 60 segundos antes de solicitar otro código.'
+            ], 429);
+        }
+
+        $otp = rand(100000, 999999);
+
+        // Guardamos el código por 10 minutos
+        Cache::put('password_reset_otp_' . $email, $otp, now()->addMinutes(10));
+        Cache::put('reset_cooldown_' . $email, true, now()->addSeconds(60));
+
+        Mail::to($email)->send(new ResetPasswordOtpMail($otp));
+
+        return response()->json([
+            'message' => 'Te hemos enviado un código de recuperación al correo.'
+        ], 200);
+    }
+
+    // Validar codigo de reset de contraseña
+    public function verifyResetOtp(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'otp'   => 'required|numeric|digits:6'
+        ]);
+
+        $email = $request->email;
+        $cachedOtp = Cache::get('password_reset_otp_' . $email);
+
+        if (!$cachedOtp || $cachedOtp != $request->otp) {
+            return response()->json([
+                'message' => 'El código es inválido o ha expirado.'
+            ], 400);
+        }
+
+        // ¡Código correcto! Lo borramos para que no se reuse.
+        Cache::forget('password_reset_otp_' . $email);
+
+        // Otorgamos un "permiso de cambio" válido por 15 minutos
+        Cache::put('password_reset_authorized_' . $email, true, now()->addMinutes(15));
+
+        return response()->json([
+            'message' => 'Código validado correctamente. Puedes ingresar tu nueva contraseña.'
+        ], 200);
+    }
+
+    // Reset de contraseña (olvide mi contraseña)
+    public function resetPassword(Request $request)
+    {
+        $request->validate([
+            'email'    => 'required|email',
+            'password' => 'required|string|min:9|confirmed' // Requiere campo password_confirmation en el front
+        ]);
+
+        $email = $request->email;
+
+        // Verificamos si el usuario pasó por el Paso 2 exitosamente
+        if (!Cache::has('password_reset_authorized_' . $email)) {
+            return response()->json([
+                'message' => 'No tienes autorización para cambiar la contraseña. Verifica tu código OTP primero.'
+            ], 403);
+        }
+
+        // Buscamos al usuario y actualizamos su clave
+        $user = User::where('email', $email)->first();
+        $user->password = Hash::make($request->password);
+        $user->save();
+
+        // Borramos el permiso para que no pueda cambiarla de nuevo sin otro OTP
+        Cache::forget('password_reset_authorized_' . $email);
+
+        // Opcional pero recomendado por seguridad: 
+        // Desconectar todos los dispositivos donde el usuario tenía sesión abierta
+        $user->tokens()->delete();
+
+        return response()->json([
+            'message' => 'Tu contraseña ha sido actualizada exitosamente.'
+        ], 200);
     }
 
     //Obtener un usuario específico
