@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Models\Payment;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -10,59 +11,43 @@ use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 
-class VerifyEmailOtpMail extends Mailable implements ShouldQueue
+class PaymentVerificationMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
     public $tries = 3;
     public $backoff = [10, 30];
 
-    public $otp;
+    public $payment;
 
-    /**
-     * Create a new message instance.
-     */
-    public function __construct($otp)
+    public function __construct(Payment $payment)
     {
-        $this->otp = $otp;
+        // Aseguramos que las relaciones necesarias estén cargadas
+        $this->payment = $payment->loadMissing(['order.user', 'currency', 'paymentMethod']);
     }
 
-    /**
-     * Get the message envelope.
-     */
     public function envelope(): Envelope
     {
+        $statusText = $this->payment->status === 'verified' ? 'Aprobado' : 'Rechazado';
+        
         return new Envelope(
-            subject: 'Tu código de verificación - Euro Rattan Margarita',
+            subject: "Aviso de Pago {$statusText} - Orden #{$this->payment->order->code}",
         );
     }
 
-    /**
-     * Get the message content definition.
-     */
     public function content(): Content
     {
         return new Content(
-            view: 'emails.auth.otp', 
+            view: 'emails.orders.payment_verification',
         );
-    }
-
-    /**
-     * Get the attachments for the message.
-     *
-     * @return array<int, \Illuminate\Mail\Mailables\Attachment>
-     */
-    public function attachments(): array
-    {
-        return [];
     }
 
     public function failed(\Throwable $exception)
     {
         // Guardamos el error en el archivo storage/logs/laravel.log para revisarlo después
         Log::error(
-            "Fallo definitivo al enviar correo de verificación de Email." .
-            " Error: " . $exception->getMessage()
+            "Fallo definitivo al enviar correo de pago ID: {$this->payment->id} " .
+            "para la orden {$this->payment->order->code}. Error: " . $exception->getMessage()
         );
     }
 }

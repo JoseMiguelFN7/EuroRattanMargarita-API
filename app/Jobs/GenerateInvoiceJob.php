@@ -13,11 +13,15 @@ use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use App\Mail\OrderInvoiceMail;
 
 class GenerateInvoiceJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    public $tries = 3;
+    public $backoff = [10, 30];
 
     public $order;
     public $generatedInvoice;
@@ -139,5 +143,14 @@ class GenerateInvoiceJob implements ShouldQueue
         if (isset($this->generatedInvoice) && $this->order->user) {
             Mail::to($this->order->user->email)->send(new OrderInvoiceMail($this->order, $this->generatedInvoice));
         }
+    }
+
+    public function failed(\Throwable $exception)
+    {
+        // Esto se ejecuta solo si agotó todos los $tries
+        Log::error(
+            "ALERTA CRÍTICA: No se pudo generar/enviar el comprobante de la orden {$this->order->code}. " .
+            "Error: " . $exception->getMessage()
+        );
     }
 }

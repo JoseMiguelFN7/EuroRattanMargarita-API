@@ -11,10 +11,14 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
 class OrderInvoiceMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
+
+    public $tries = 3;
+    public $backoff = [10, 30];
 
     public $order;
     public $invoice;
@@ -45,8 +49,17 @@ class OrderInvoiceMail extends Mailable implements ShouldQueue
         // donde lo acabas de guardar en el Job
         return [
             Attachment::fromStorageDisk('public', $this->invoice->pdf_url)
-                ->as('Factura_' . $this->invoice->invoice_number . '.pdf')
+                ->as('comprobante_' . $this->invoice->invoice_number . '.pdf')
                 ->withMime('application/pdf'),
         ];
+    }
+
+    public function failed(\Throwable $exception)
+    {
+        // Guardamos el error en el archivo storage/logs/laravel.log para revisarlo después
+        Log::error(
+            "Fallo definitivo al enviar correo de comprobante: {$this->invoice->invoice_number} " .
+            "para la orden {$this->order->code}. Error: " . $exception->getMessage()
+        );
     }
 }

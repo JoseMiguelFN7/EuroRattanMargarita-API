@@ -9,6 +9,8 @@ use Illuminate\Http\Request;
 use App\Models\Payment;
 use App\Models\Order;
 use App\Jobs\GenerateInvoiceJob;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\PaymentVerificationMail;
 
 class PaymentController extends Controller
 {
@@ -301,7 +303,7 @@ class PaymentController extends Controller
             'is_approved' => 'required|boolean'
         ]);
 
-        $payment = Payment::with(['order.products', 'order.payments'])->find($id);
+        $payment = Payment::with(['order.user', 'order.products', 'order.payments', 'currency', 'paymentMethod'])->find($id);
 
         if (!$payment) {
             return response()->json(['message' => 'Pago no encontrado'], 404);
@@ -418,6 +420,11 @@ class PaymentController extends Controller
             }
 
             DB::commit();
+
+            // ENVIAR EL CORREO AL USUARIO
+            if ($order->user) {
+                Mail::to($order->user->email)->send(new PaymentVerificationMail($payment));
+            }
 
             return response()->json([
                 'message'        => $message,
