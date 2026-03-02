@@ -12,12 +12,15 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\OrderInvoiceMail;
 
 class GenerateInvoiceJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $order;
+    public $generatedInvoice;
 
     public function __construct(Order $order)
     {
@@ -128,6 +131,13 @@ class GenerateInvoiceJob implements ShouldQueue
 
             $invoice->update(['pdf_url' => $filePath]);
 
+            $this->generatedInvoice = $invoice;
+
         });
+
+        // --- ENVIAR EL CORREO AL USUARIO ---
+        if (isset($this->generatedInvoice) && $this->order->user) {
+            Mail::to($this->order->user->email)->send(new OrderInvoiceMail($this->order, $this->generatedInvoice));
+        }
     }
 }
