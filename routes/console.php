@@ -1,5 +1,6 @@
 <?php
 
 use Illuminate\Support\Facades\Schedule;
+use App\Jobs\FetchBcvRateJob;
 
-Schedule::command('bcv:fetch')->weekdays()->at('22:00');
+Schedule::job(new FetchBcvRateJob)->weekdays()->at('22:00');
