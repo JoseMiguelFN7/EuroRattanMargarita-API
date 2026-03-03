@@ -201,6 +201,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     //Ruta para solicitar receta a IA
     Route::post('/recipes/ai-suggest', [\App\Http\Controllers\RecipeAIController::class, 'suggest']);
 
+    // Ruta para el chat interactivo
+    Route::post('/chat/send', [\App\Http\Controllers\AiConsultantController::class, 'sendMessage']);
+
     // Rutas para el carrito de compras
     Route::post('/cart/validate-items', [\App\Http\Controllers\ProductController::class, 'validateCartItems']); // Validar items del carrito
 
