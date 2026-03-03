@@ -60,6 +60,12 @@ return [
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
+            'dump' => [
+               // Revisa en tu explorador de archivos cuál es tu versión exacta de MySQL en Laragon
+               'dump_binary_path' => 'C:\laragon\bin\mysql\mysql-8.0.30-winx64\bin',
+               'use_single_transaction' => true,
+               'timeout' => 60 * 5, // 5 minutos de tiempo límite
+            ],
         ],
 
         'mariadb' => [

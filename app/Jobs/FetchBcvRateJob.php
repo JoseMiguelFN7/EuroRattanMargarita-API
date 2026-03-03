@@ -120,7 +120,7 @@ class FetchBcvRateJob implements ShouldQueue
 
             // Advertencia visual si la fecha es futura
             if ($validAt->isFuture()) {
-                Log::warn("⚠️  ATENCIÓN: Esta tasa es para el futuro. El sistema la usará automáticamente cuando llegue la fecha.");
+                Log::warning("⚠️  ATENCIÓN: Esta tasa es para el futuro. El sistema la usará automáticamente cuando llegue la fecha.");
             }
 
         } catch (\Exception $e) {
