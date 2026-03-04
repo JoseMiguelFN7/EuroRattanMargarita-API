@@ -83,7 +83,7 @@ class AiConsultantController extends Controller
         $systemContent = Content::parse($instrucciones);
 
         // Inicializamos el chat inyectando la personalidad primero
-        $chat = Gemini::generativeModel('gemini-2.5-flash-lite')
+        $chat = Gemini::generativeModel('gemini-2.5-flash')
             ->withSystemInstruction($systemContent)
             ->startChat(history: $historyForGemini);
 
