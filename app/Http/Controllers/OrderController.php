@@ -266,7 +266,7 @@ class OrderController extends Controller
         // 1. Añadimos 'payments.currency' para poder saber la moneda original de cada pago
         $order = Order::with([
             'user:id,name,email,cellphone',
-            'products',
+            'products.colors',
             'invoice',
             'payments' => function ($query) {
                 $query->latest(); 
@@ -304,6 +304,12 @@ class OrderController extends Controller
                                 ? asset('storage/' . $order->invoice->pdf_url) 
                                 : null,
             'products' => $order->products->map(function ($product) {
+                $colorName = null;
+                if (!empty($product->pivot->variant_id)) {
+                    $color = $product->colors->firstWhere('id', $product->pivot->variant_id);
+                    $colorName = $color ? $color->name : null;
+                }
+
                 return [
                     'id'         => $product->id,
                     'name'       => $product->name,
@@ -311,6 +317,7 @@ class OrderController extends Controller
                     'price'      => $product->pivot->price,
                     'discount'   => $product->pivot->discount,
                     'variant_id' => $product->pivot->variant_id,
+                    'variant_name' => $colorName,
                     'subtotal'   => round($product->pivot->quantity * $product->pivot->price, 2),
                 ];
             }),
@@ -363,7 +370,7 @@ class OrderController extends Controller
         // 1. Añadimos 'payments.currency' a la carga ansiosa
         $order = Order::with([
             'user:id,name,email,cellphone',
-            'products',
+            'products.colors',
             'invoice',
             'payments' => function ($query) {
                 $query->latest(); 
@@ -409,6 +416,12 @@ class OrderController extends Controller
                 'cellphone' => $order->user->cellphone ?? 'N/A',
             ],
             'products' => $order->products->map(function ($product) {
+                $colorName = null;
+                if (!empty($product->pivot->variant_id)) {
+                    $color = $product->colors->firstWhere('id', $product->pivot->variant_id);
+                    $colorName = $color ? $color->name : null;
+                }
+            
                 return [
                     'id'         => $product->id,
                     'name'       => $product->name,
@@ -416,6 +429,7 @@ class OrderController extends Controller
                     'price'      => $product->pivot->price,
                     'discount'   => $product->pivot->discount,
                     'variant_id' => $product->pivot->variant_id,
+                    'variant_name' => $colorName,
                     'subtotal'   => round($product->pivot->quantity * $product->pivot->price, 2),
                 ];
             }),

@@ -431,9 +431,10 @@ class ProductController extends Controller
 
         $response = [];
 
-        // 1. MAPEO DE COLORES
+        // 1. MAPEO DE COLORES (MODIFICADO)
+        // Traemos los objetos completos de los colores indexados por ID
         $variantIds = collect($request->items)->pluck('variantId')->filter()->unique();
-        $colorsMap = \App\Models\Color::whereIn('id', $variantIds)->pluck('is_natural', 'id');
+        $colorsData = \App\Models\Color::whereIn('id', $variantIds)->get()->keyBy('id');
 
         // 2. Carga de Productos
         $productRelations = [
@@ -451,11 +452,8 @@ class ProductController extends Controller
         $productsData = \App\Models\Product::with($productRelations)->whereIn('id', $productIds)->get()->keyBy('id');
 
         // --- LA SOLUCIÓN AL PROBLEMA DE INVENTARIO COMPARTIDO ---
-        // Aquí llevaremos la cuenta de cuánto stock físico vamos "consumiendo"
-        // Estructura: [ productId => [ variantId => cantidad_reservada ] ]
         $allocatedStock = [];
 
-        // Función Helper para obtener el stock físico real (para no repetir código)
         $getTotalStock = function ($productModel, $variantId, $isMaterial = false) {
             if ($isMaterial) {
                 if ($variantId) {
@@ -478,13 +476,16 @@ class ProductController extends Controller
             if (!$product) continue;
 
             $variantId = $item['variantId'] ?? null;
-            $allocKey = $variantId ?? 'all'; // Llave para el array de reservas
+            $allocKey = $variantId ?? 'all'; 
             $reqQty = (int) $item['quantity'];
             
-            $isNatural = $variantId ? ($colorsMap[$variantId] ?? true) : true;
+            // --- NUEVO: Extraemos la data del color ---
+            $colorModel = $variantId ? ($colorsData[$variantId] ?? null) : null;
+            $isNatural = $colorModel ? $colorModel->is_natural : true;
+            $colorName = $colorModel ? $colorModel->name : ($variantId ? 'Desconocido' : 'Natural / Sin Pintar');
             
             $price = 0;
-            $maxCanBuy = 0; // Cuántos de ESTE item puede llevar basándonos en lo que queda libre
+            $maxCanBuy = 0; 
 
             // --- LÓGICA PARA JUEGOS (SETS) ---
             if ($product->set) {
@@ -494,13 +495,12 @@ class ProductController extends Controller
                 if ($variantId) {
                     $maxSetsPossible = 999999;
                     
-                    // Recorremos cada mueble físico que conforma el set
                     foreach ($product->set->furnitures as $furniture) {
-                        $fProduct = $furniture->product; // El producto físico real
+                        $fProduct = $furniture->product; 
                         
                         $fTotalStock = $getTotalStock($fProduct, $variantId, false);
                         $fAllocated  = $allocatedStock[$fProduct->id][$allocKey] ?? 0;
-                        $fRemaining  = max(0, $fTotalStock - $fAllocated); // Stock libre
+                        $fRemaining  = max(0, $fTotalStock - $fAllocated); 
 
                         $qtyPerSet = $furniture->pivot->quantity;
                         $possible  = $qtyPerSet > 0 ? floor($fRemaining / $qtyPerSet) : 999999;
@@ -514,7 +514,6 @@ class ProductController extends Controller
                     $maxCanBuy = 0;
                 }
 
-                // Hacemos la "Reserva en memoria" solo por la cantidad que SÍ puede comprar
                 $actualAllocate = min($reqQty, $maxCanBuy);
                 if ($actualAllocate > 0) {
                     foreach ($product->set->furnitures as $furniture) {
@@ -534,7 +533,6 @@ class ProductController extends Controller
                 $fAllocated  = $allocatedStock[$product->id][$allocKey] ?? 0;
                 $maxCanBuy   = max(0, $fTotalStock - $fAllocated);
 
-                // Hacemos la reserva en memoria
                 $actualAllocate = min($reqQty, $maxCanBuy);
                 if ($actualAllocate > 0) {
                     $allocatedStock[$product->id][$allocKey] = ($allocatedStock[$product->id][$allocKey] ?? 0) + $actualAllocate;
@@ -549,7 +547,6 @@ class ProductController extends Controller
                 $fAllocated  = $allocatedStock[$product->id][$allocKey] ?? 0;
                 $maxCanBuy   = max(0, $fTotalStock - $fAllocated);
 
-                // Hacemos la reserva en memoria
                 $actualAllocate = min($reqQty, $maxCanBuy);
                 if ($actualAllocate > 0) {
                     $allocatedStock[$product->id][$allocKey] = ($allocatedStock[$product->id][$allocKey] ?? 0) + $actualAllocate;
@@ -560,13 +557,14 @@ class ProductController extends Controller
             $response[] = [
                 'id'                 => $product->id,
                 'variant_id'         => $variantId,
+                'variant_name'       => $colorName, // <-- AÑADIDO
                 'name'               => $product->name,
                 'image'              => $product->images->first() 
                                         ? asset('storage/' . $product->images->first()->url) 
                                         : null,
                 'price'              => (float) $price,
                 'discount'           => (float) $product->discount,
-                'stock_available'    => (int) $maxCanBuy, // Stock libre *después* de procesar items anteriores
+                'stock_available'    => (int) $maxCanBuy, 
                 'quantity'           => (int) $reqQty,
                 'insufficient_stock' => $reqQty > $maxCanBuy,
             ];

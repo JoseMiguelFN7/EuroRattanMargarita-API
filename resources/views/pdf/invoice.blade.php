@@ -71,10 +71,18 @@
                 $montoBaseBs = $item->pivot->quantity * $precioBs;
                 $montoDescuentoBs = $montoBaseBs * ($descuentoPorcentaje / 100);
                 $totalLineaBs = $montoBaseBs - $montoDescuentoBs;
+
+                $colorName = '';
+                if (!empty($item->pivot->variant_id)) {
+                    $color = $item->colors->firstWhere('id', $item->pivot->variant_id);
+                    if ($color) {
+                        $colorName = ' - ' . $color->name;
+                    }
+                }
             @endphp
             <tr>
                 <td class="text-center">{{ number_format($item->pivot->quantity, 2, ',', '.') }}</td>
-                <td>{{ $item->name }}</td>
+                <td>{{ $item->name }}{{ $colorName }}</td>
                 <td class="text-right">{{ number_format($precioBs, 2, ',', '.') }}</td>
                 <td class="text-center">{{ $descuentoPorcentaje }}%</td>
                 <td class="text-right">{{ number_format($totalLineaBs, 2, ',', '.') }} (E)</td>

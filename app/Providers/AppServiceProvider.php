@@ -7,7 +7,11 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use App\Models\Permission;
 use App\Models\Order;
+use App\Models\Commission;
+use App\Models\CommissionSuggestion;
 use App\Observers\OrderObserver;
+use App\Observers\CommissionObserver;
+use App\Observers\SuggestionObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -36,5 +40,7 @@ class AppServiceProvider extends ServiceProvider
         }
 
         Order::observe(OrderObserver::class);
+        Commission::observe(CommissionObserver::class);
+        CommissionSuggestion::observe(SuggestionObserver::class);
     }
 }

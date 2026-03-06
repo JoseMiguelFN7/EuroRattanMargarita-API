@@ -34,7 +34,7 @@ class GenerateInvoiceJob implements ShouldQueue
     public function handle(): void
     {
         // Forzamos la carga desde la DB para evitar el bug del caché con las monedas
-        $this->order->load(['user', 'products', 'payments.currency']);
+        $this->order->load(['user', 'products.colors', 'payments.currency']);
 
         DB::transaction(function () {
             
