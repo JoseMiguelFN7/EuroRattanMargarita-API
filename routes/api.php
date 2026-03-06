@@ -168,6 +168,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/order/auth/paymentDetails/code/{code}', [\App\Http\Controllers\OrderController::class, 'getPaymentDetails']); // Obtener los detalles para reportar nuevos pagos en una orden del cliente
     Route::get('/order/auth/code/{code}', [\App\Http\Controllers\OrderController::class, 'showMyOrderByCode']); // Obtener una orden por codigo validando que sea del usuario autenticado
     Route::get('/order/code/{code}', [\App\Http\Controllers\OrderController::class, 'showByCode']); // Obtener una orden por codigo
+    Route::post('/order/from-commission', [\App\Http\Controllers\OrderController::class, 'storeFromCommission']); // Crear orden a partir de un encargo aprobado
     Route::post('/order/cancel/{id}', [\App\Http\Controllers\OrderController::class, 'cancel']); // Cancelar orden
     Route::get('/order/{id}', [\App\Http\Controllers\OrderController::class, 'show']); // Obtener una orden específica
     Route::post('/order', [\App\Http\Controllers\OrderController::class, 'store']); // Crear orden
@@ -223,6 +224,20 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/payments', [\App\Http\Controllers\PaymentController::class, 'storeMany']); // Crear varios pagos de una orden
     Route::post('/payment', [\App\Http\Controllers\PaymentController::class, 'store']); // Crear pago
     Route::post('/payment/{id}/verify', [\App\Http\Controllers\PaymentController::class, 'verify']); // Aprobar/Rechazar pago
+
+    // Rutas para el CRUD de encargos
+    Route::get('/commissions', [\App\Http\Controllers\CommissionController::class, 'index']); // Obtener todos los encargos con paginacion
+    Route::get('/commission/{code}', [\App\Http\Controllers\CommissionController::class, 'show']); // Obtener un encargo específico
+    Route::get('/commission/{code}/quotation', [\App\Http\Controllers\CommissionController::class, 'getQuotationByCommission']); // Obtener la cotización de un encargo específico
+    Route::get('/my-commissions', [\App\Http\Controllers\CommissionController::class, 'myCommissions']); // Obtener todos los encargos con paginacion del usuario autenticado
+    Route::get('/my-commission/{code}', [\App\Http\Controllers\CommissionController::class, 'showMyCommission']); // Obtener un encargo específico del usuario autenticado
+    Route::post('/commission', [\App\Http\Controllers\CommissionController::class, 'store']); // Crear un encargo
+    Route::post('/commission/check-manufacturability', [\App\Http\Controllers\FurnitureController::class, 'checkManufacturability']); // Verificar si un encargo es fabricable
+    Route::post('/commission/{id}/suggestion', [\App\Http\Controllers\CommissionController::class, 'addSuggestion']); // Agregar sugerencia a un encargo
+    Route::post('/commission/{id}/approve', [\App\Http\Controllers\CommissionController::class, 'approve']); // Aprobar encargo para pasar a producción/cotización
+    Route::post('/commission/{id}/cancel', [\App\Http\Controllers\CommissionController::class, 'cancel']); // Cancelar encargo
+    Route::post('/commission/{code}/quote', [\App\Http\Controllers\CommissionController::class, 'markAsQuoted']); // Marcar encargo como cotizado después de que se le asigna una cotización
+    Route::post('/chat/generate-description', [\App\Http\Controllers\AiConsultantController::class, 'generateOrderDescription']); // Generar descripción para encargo usando IA
 
     // Rutas para imagenes de banners
     Route::get('/banners', [\App\Http\Controllers\BannerImageController::class, 'index']); // Obtener todos los Banners con paginación

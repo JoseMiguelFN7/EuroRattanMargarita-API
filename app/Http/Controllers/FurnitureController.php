@@ -327,7 +327,8 @@ class FurnitureController extends Controller
             'images' => 'nullable|array',
             'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
             'colors' => 'required|array',
-            'colors.*' => 'integer|exists:colors,id'
+            'colors.*' => 'integer|exists:colors,id',
+            'commission_code' => 'nullable|string|exists:commissions,code'
         ]);
 
         if ($validator->fails()) {
@@ -347,12 +348,20 @@ class FurnitureController extends Controller
                 'discount' => $request->discount
             ]);
 
+            // Buscamos el ID del encargo usando el código provisto (si existe)
+            // Usamos value('id') para que la consulta sea ultra ligera y traiga solo ese número
+            $commissionId = null;
+            if ($request->filled('commission_code')) {
+                $commissionId = \App\Models\Commission::where('code', $request->commission_code)->value('id');
+            }
+
             $furniture = Furniture::create([
                 'product_id' => $product->id,
                 'furniture_type_id' => $request->furnitureType_id,
                 'profit_per' => $request->profit_per,
                 'paint_per' => $request->paint_per,
-                'labor_fab_per' => $request->labor_fab_per
+                'labor_fab_per' => $request->labor_fab_per,
+                'commission_id' => $commissionId,
             ]);
 
             if ($request->hasFile('images')) {
@@ -568,7 +577,8 @@ class FurnitureController extends Controller
             'furniture_color_id' => 'required|integer|exists:colors,id'
         ]);
 
-        $furniture = Furniture::with(['materials.product', 'product.colors'])->find($request->furniture_id);
+        // Ya no necesitamos cargar 'materials.product' aquí porque el modelo Furniture se encarga de eso internamente
+        $furniture = Furniture::with(['product.colors'])->findOrFail($request->furniture_id);
         $quantityToBuild = $request->quantity;
         $colorToBuild = $request->furniture_color_id;
 
@@ -586,29 +596,13 @@ class FurnitureController extends Controller
         try {
             $now = now();
 
-            // --- A. Sumar el mueble terminado al inventario ---
-            $this->inventoryService->recordMovement(
-                $furniture->product_id,
-                $quantityToBuild, // Positivo (Entrada)
+            $furniture->manufacture(
+                $quantityToBuild,
                 $colorToBuild,
-                $now,
-                $furniture
+                $this->inventoryService,
+                $furniture, 
+                $now
             );
-
-            // --- B. Descontar los materiales utilizados ---
-            // Si el servicio detecta que falta algún material, arrojará una excepción,
-            // detendrá el ciclo foreach y mandará el error directamente al catch.
-            foreach ($furniture->materials as $material) {
-                $totalUsed = $material->pivot->quantity * $quantityToBuild;
-
-                $this->inventoryService->recordMovement(
-                    $material->product_id,
-                    -$totalUsed, // Negativo (Salida controlada)
-                    $material->pivot->color_id,
-                    $now,
-                    $furniture
-                );
-            }
 
             DB::commit();
 
@@ -620,12 +614,66 @@ class FurnitureController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
 
-            // Atrapamos la excepción del InventoryService si hay un stock negativo
-            // o cualquier otro error general.
             return response()->json([
                 'message' => 'Ocurrió un error al procesar el inventario.',
                 'error' => $e->getMessage()
-            ], 400); // 400 Bad Request es más semántico para reglas de negocio que 500
+            ], 400); 
+        }
+    }
+
+    public function checkManufacturability(Request $request)
+    {
+        $request->validate([
+            'items' => 'required|array',
+            'items.*.productId' => 'required|exists:products,id',
+            'items.*.variantId' => 'nullable|integer', 
+            'items.*.quantity'  => 'required|integer|min:1',
+        ]);
+
+        // Iniciamos la transacción para nuestra "simulación"
+        DB::beginTransaction();
+
+        try {
+            $now = now();
+
+            foreach ($request->items as $item) {
+                // Buscamos el modelo Furniture asociado a ese producto
+                $furniture = Furniture::where('product_id', $item['productId'])->first();
+
+                if (!$furniture) {
+                    throw new \Exception("El producto no es un mueble fabricable.");
+                }
+
+                // Simulamos la fabricación. 
+                // Si falta material, tu InventoryService arrojará una excepción y saltaremos al catch.
+                $furniture->manufacture(
+                    $item['quantity'],
+                    $item['variantId'] ?? null,
+                    $this->inventoryService,
+                    $furniture,
+                    $now
+                );
+            }
+
+            // Si llegamos a esta línea, significa que hay materiales de sobra para TODO el pedido.
+            // MUY IMPORTANTE: Hacemos rollBack porque esto era solo una prueba, no queremos guardar nada.
+            DB::rollBack();
+
+            return response()->json([
+                'can_manufacture' => true,
+                'message' => 'Todo listo para la fabricación.'
+            ], 200);
+
+        } catch (\Exception $e) {
+            // Faltó algún material o hubo un error en la simulación.
+            // Revertimos cualquier movimiento parcial que se haya simulado en el bucle.
+            DB::rollBack();
+
+            // Devolvemos exactamente lo que pediste: sin dar detalles al usuario.
+            return response()->json([
+                'can_manufacture' => false,
+                'message' => 'Actualmente no se pueden fabricar los muebles solicitados.'
+            ], 400); // Puedes usar 400 o 422 según lo maneje tu frontend
         }
     }
 }

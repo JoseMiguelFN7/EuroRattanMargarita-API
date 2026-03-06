@@ -6,6 +6,8 @@ use App\Models\Order;
 use App\Models\Payment;
 use App\Models\Product;
 use App\Models\PaymentMethod;
+use App\Models\Commission;
+use App\Models\Furniture;
 use App\Services\InventoryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -599,6 +601,167 @@ class OrderController extends Controller
         }
     }
 
+    public function storeFromCommission(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'commission_code'       => 'required|string|exists:commissions,code',
+            'user_id'               => 'required|integer|exists:users,id',
+            'exchange_rate'         => 'required|numeric|min:0',
+            'notes'                 => 'nullable|string|max:1000',
+            
+            'products'              => 'required|array',
+            'products.*.id'         => 'required|integer|exists:products,id',
+            'products.*.variant_id' => 'required|integer|exists:colors,id',
+            'products.*.quantity'   => 'required|numeric|min:0.01',
+            'products.*.price'      => 'required|numeric|min:0',
+            'products.*.discount'   => 'nullable|numeric|min:0|max:100',
+
+            'payments'                      => 'nullable|array',
+            'payments.*.amount'             => 'required_with:payments|numeric|min:0.01',
+            'payments.*.currency_id'        => 'required_with:payments|exists:currencies,id',
+            'payment_method_ids'            => 'required_with:payments|array', 
+            'payments.*.payment_method_id'  => 'required_with:payments|exists:payment_methods,id',
+            'payments.*.reference_number'   => 'nullable|string|max:50',
+            'payments.*.proof_image'        => 'nullable|image|mimes:jpeg,png,jpg|max:2048'
+        ]);
+
+        if ($validator->fails()) return response()->json(['errors' => $validator->errors()], 422);
+
+        DB::beginTransaction();
+        $uploadedPaths = []; 
+
+        try {
+            // 1. Validar y obtener el encargo
+            $commission = Commission::where('code', $request->commission_code)->firstOrFail();
+
+            // Cálculos de subtotal e IGTF
+            $subtotal = 0;
+            foreach ($request->products as $item) {
+                $lineTotal = $item['quantity'] * $item['price'];
+                $discountPercent = $item['discount'] ?? 0;
+                $subtotal += $lineTotal * (1 - ($discountPercent / 100));
+            }
+
+            $igtfAmount = 0;
+            if ($request->has('payments') && count($request->payments) > 0) {
+                $firstPaymentMethodId = $request->payments[0]['payment_method_id'];
+                $paymentMethod = PaymentMethod::find($firstPaymentMethodId);
+                
+                if ($paymentMethod && $paymentMethod->applies_igtf) {
+                    $igtfAmount = round($subtotal * 0.03, 2);
+                }
+            }
+
+            $initialStatus = $request->has('payments') ? 'verifying_payment' : 'pending_payment';
+
+            // 2. Crear la Orden
+            $order = Order::create([
+                'user_id'       => $request->user_id,
+                'exchange_rate' => $request->exchange_rate,
+                'notes'         => $request->notes,
+                'status'        => $initialStatus,
+                'igtf_amount'   => $igtfAmount,
+            ]);
+
+            $commission->update([
+                'order_id' => $order->id,
+                'status'   => 'order_created'
+            ]);
+
+            // 3. Vincular la orden al encargo
+            $commission->update(['order_id' => $order->id]);
+
+            $now = $order->created_at;
+            
+            // Ya no cargamos 'set.furnitures' porque sabemos que en este flujo no existen los juegos
+            $productIds = collect($request->products)->pluck('id');
+            $productsData = Product::whereIn('id', $productIds)->get()->keyBy('id');
+
+            // 4. Procesar Productos y Manufactura
+            foreach ($request->products as $item) {
+                $variantId = $item['variant_id']; 
+                $productModel = $productsData[$item['id']];
+
+                // LA VALIDACIÓN DE SEGURIDAD: 
+                // Asegura que el producto que intentan comprar efectivamente fue diseñado en ESTE encargo.
+                $furniture = Furniture::where('commission_id', $commission->id)
+                                      ->where('product_id', $item['id'])
+                                      ->first();
+                
+                if (!$furniture) {
+                    throw new \Exception("El producto ID {$item['id']} no forma parte de la cotización del encargo {$commission->code}.");
+                }
+
+                // A) Fabricamos el mueble (+N al inventario de producto terminado, -N a los materiales)
+                $furniture->manufacture(
+                    $item['quantity'], 
+                    $variantId, 
+                    $this->inventoryService, 
+                    $commission,
+                    $now
+                );
+
+                // B) Asociamos el producto a la orden
+                $order->products()->attach($item['id'], [
+                    'quantity'   => $item['quantity'],
+                    'price'      => $item['price'],
+                    'discount'   => $item['discount'] ?? 0,
+                    'variant_id' => $variantId,
+                ]);
+
+                // C) Descontamos de inventario por la venta (-N al inventario de producto)
+                // Como solo son muebles individuales, la deducción es directa.
+                $this->inventoryService->recordMovement(
+                    $item['id'],
+                    -abs($item['quantity']),
+                    $variantId,
+                    $now,
+                    $order
+                );
+            }
+
+            // 5. Procesar Pagos
+            if ($request->has('payments')) {
+                foreach ($request->payments as $index => $paymentData) {
+                    $path = null;
+                    
+                    if ($request->hasFile("payments.{$index}.proof_image")) {
+                        $file = $request->file("payments.{$index}.proof_image");
+                        $path = $file->store('payments', 'public');
+                        $uploadedPaths[] = $path; 
+                    }
+
+                    Payment::create([
+                        'order_id'          => $order->id,
+                        'amount'            => $paymentData['amount'],
+                        'currency_id'       => $paymentData['currency_id'],
+                        'payment_method_id' => $paymentData['payment_method_id'],
+                        'reference_number'  => $paymentData['reference_number'] ?? null,
+                        'proof_image'       => $path,
+                        'status'            => 'pending',
+                        'exchange_rate'     => $request->exchange_rate 
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            return response()->json($order->load(['products', 'payments']), 201);
+
+        } catch (\Exception $e) {
+            DB::rollback();
+            foreach ($uploadedPaths as $path) {
+                if (Storage::disk('public')->exists($path)) {
+                    Storage::disk('public')->delete($path);
+                }
+            }
+            return response()->json([
+                'message' => 'Error al procesar la orden o el inventario.',
+                'error'   => $e->getMessage()
+            ], 400); 
+        }
+    }
+
     public function cancel($id)
     {
         $order = Order::find($id);
@@ -616,10 +779,9 @@ class OrderController extends Controller
         DB::beginTransaction();
 
         try {
+            // AL cambiar el estado, el OrderObserver se dispara automáticamente
+            // y él se encargará de hacer TODOS los reverseMovements y compensaciones.
             $order->update(['status' => 'cancelled']);
-
-            // --- NUEVO: Reversión segura usando el servicio ---
-            $this->inventoryService->reverseMovements($order);
 
             DB::commit();
 

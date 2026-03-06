@@ -1,0 +1,15 @@
+meta {
+  name: Get All Commissions
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{host}}commissions
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}

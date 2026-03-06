@@ -81,6 +81,7 @@ class ProductMovementController extends Controller
                     Order::class               => ['user'],
                     Furniture::class           => ['product'],
                     InventoryAdjustment::class => ['user'], 
+                    \App\Models\Commission::class => ['user'], // <-- AGREGADO: Relación con el Encargo y su usuario
                 ]);
             }
         ])
@@ -101,7 +102,7 @@ class ProductMovementController extends Controller
 
             switch ($movement->movementable_type) {
                 
-                case \App\Models\Purchase::class:
+                case Purchase::class:
                     $originType    = 'Compra';
                     $reason        = 'Reabastecimiento de inventario';
                     $details       = 'Proveedor: ' . ($movement->movementable->supplier->name ?? 'Desconocido');
@@ -109,32 +110,44 @@ class ProductMovementController extends Controller
                     $referenceCode = $movement->movementable->code ?? null;
                     break;
 
-                case \App\Models\Order::class:
+                case Order::class:
                     $originType    = 'Orden';
-                    $reason        = 'Venta / Orden de cliente';
-                    $details       = 'Orden N° ' . ($movement->movementable->code ?? 'N/A');
+                    // --- MODIFICADO: Diferenciamos si es venta (negativo) o cancelación (positivo) ---
+                    if ($movement->quantity > 0) {
+                        $reason  = 'Reintegro por cancelación';
+                        $details = 'Devolución de material/producto por Orden N° ' . ($movement->movementable->code ?? 'N/A');
+                    } else {
+                        $reason  = 'Venta / Orden de cliente';
+                        $details = 'Orden N° ' . ($movement->movementable->code ?? 'N/A');
+                    }
                     $user          = $movement->movementable->user->name ?? 'Cliente Desconocido';
                     $referenceId   = $movement->movementable->id ?? null;
                     $referenceCode = $movement->movementable->code ?? null;
                     break;
 
-                case \App\Models\Furniture::class:
+                case Furniture::class:
                     $originType    = 'Fabricación';
                     $reason        = $movement->quantity > 0 ? 'Ingreso por fabricación' : 'Material usado en fabricación';
                     $details       = 'Mueble: ' . ($movement->movementable->product->name ?? 'Desconocido');
                     $referenceId   = $movement->movementable->id ?? null;
                     break;
 
-                // --- NUEVO CASO PARA AJUSTES DE INVENTARIO ---
-                case \App\Models\InventoryAdjustment::class:
+                case InventoryAdjustment::class:
                     $originType    = 'Ajuste';
-                    // Tomamos el concepto que escribió el almacenista
                     $reason        = $movement->movementable->concept ?? 'Ajuste de inventario'; 
-                    // Indicamos si fue sobrante (suma) o merma (resta)
                     $details       = $movement->quantity > 0 ? 'Sobrante (Ingreso)' : 'Merma / Pérdida (Salida)';
-                    // Traemos el nombre del usuario logueado que procesó el ajuste
                     $user          = $movement->movementable->user->name ?? 'Desconocido';
                     $referenceId   = $movement->movementable->id ?? null;
+                    break;
+
+                // --- NUEVO CASO PARA ENCARGOS ---
+                case \App\Models\Commission::class:
+                    $originType    = 'Encargo';
+                    $reason        = $movement->quantity > 0 ? 'Ingreso de mueble por encargo' : 'Salida por encargo';
+                    $details       = 'Encargo N° ' . ($movement->movementable->code ?? 'N/A');
+                    $user          = $movement->movementable->user->name ?? 'Cliente Desconocido';
+                    $referenceId   = $movement->movementable->id ?? null;
+                    $referenceCode = $movement->movementable->code ?? null;
                     break;
             }
 

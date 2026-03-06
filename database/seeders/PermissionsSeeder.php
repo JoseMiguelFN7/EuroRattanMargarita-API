@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use App\Models\Permission;
 
@@ -110,7 +109,18 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'sales.cancel', 'name' => 'Cancelar Ventas'],
             ],
 
-            // 11. MÉTODOS DE PAGO
+            // 11. ENCARGOS PERSONALIZADOS
+            'Encargos' => [
+                ['slug' => 'commissions.view',    'name' => 'Ver Encargos'],
+                ['slug' => 'commissions.create',  'name' => 'Crear Encargos'],
+                ['slug' => 'commissions.approve', 'name' => 'Aprobar Encargos'],
+                ['slug' => 'commissions.reject',  'name' => 'Rechazar Encargos'],
+                ['slug' => 'commissions.suggestions.create', 'name' => 'Crear Sugerencias de Encargos'],
+                ['slug' => 'commissions.quotations.view',   'name' => 'Ver Cotizaciones de Encargos'],
+                ['slug' => 'commissions.quotations.confirm',   'name' => 'Confirmar Cotizaciones de Encargos'],
+            ],
+
+            // 12. MÉTODOS DE PAGO
             'Métodos de pago' => [
                 ['slug' => 'payment_methods.view',   'name' => 'Ver Métodos de Pago'],
                 ['slug' => 'payment_methods.create', 'name' => 'Crear Métodos de Pago'],
@@ -118,18 +128,18 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'payment_methods.delete', 'name' => 'Eliminar Métodos de Pago'],
             ],
 
-            // 12. PAGOS
+            // 13. PAGOS
             'Pagos' => [
                 ['slug' => 'payments.view',   'name' => 'Ver Pagos'],
                 ['slug' => 'payments.verify', 'name' => 'Verificar Pagos'],
             ],
 
-            // 13. COMPROBANTES DIGITALES
+            // 14. COMPROBANTES DIGITALES
             'Comprobantes' => [
                 ['slug' => 'invoices.view',   'name' => 'Ver Comprobantes Digitales'],
             ],
 
-            // 14. CONFIGURACIONES
+            // 15. CONFIGURACIONES
             'Configuraciones' => [
                 ['slug' => 'banner_images.view',   'name' => 'Ver Imágenes del Banner'],
                 ['slug' => 'banner_images.create', 'name' => 'Crear Imágenes del Banner'],
@@ -137,7 +147,7 @@ class PermissionsSeeder extends Seeder
                 ['slug' => 'banner_images.delete', 'name' => 'Eliminar Imágenes del Banner'],
             ],
 
-            // 15. TASAS DE CAMBIO
+            // 16. TASAS DE CAMBIO
             'Tasas de Cambio' => [
                 ['slug' => 'currency_rates.view',   'name' => 'Ver Tasas de Cambio'],
             ]

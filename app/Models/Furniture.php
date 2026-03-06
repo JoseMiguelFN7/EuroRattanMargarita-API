@@ -13,7 +13,8 @@ class Furniture extends Model
         'profit_per',
         'paint_per',
         'labor_fab_per',
-        'furniture_type_id'
+        'furniture_type_id',
+        'commission_id',
     ];
 
     public function product()
@@ -38,6 +39,10 @@ class Furniture extends Model
     public function sets(){
         return $this->belongsToMany(Set::class, 'sets_furnitures', 'furniture_id', 'set_id')
                     ->withPivot('quantity');
+    }
+
+    public function commission() {
+        return $this->belongsTo(Commission::class);
     }
 
     public function calcularPrecios()
@@ -82,5 +87,39 @@ class Furniture extends Model
             'pvp_natural' => round($pvpNatural, 2),
             'pvp_color' => round($pvpColor, 2),
         ];
+    }
+
+    /**
+     * Fabrica el mueble: Suma el producto terminado y descuenta los materiales.
+     * Lanza excepción si no hay materiales suficientes.
+     */
+    public function manufacture($quantityToBuild, $colorToBuild, $inventoryService, $referenceForAddition, $now)
+    {
+        // 1. Sumar el mueble terminado al inventario (Entrada)
+        // Referencia solicitada: El Pedido ($referenceForAddition)
+        $inventoryService->recordMovement(
+            $this->product_id,
+            $quantityToBuild, 
+            $colorToBuild,
+            $now,
+            $referenceForAddition 
+        );
+
+        // 2. Descontar los materiales utilizados (Salida controlada)
+        // Cargamos la relación si no venía cargada para evitar errores
+        $this->loadMissing('materials');
+        
+        foreach ($this->materials as $material) {
+            $totalUsed = $material->pivot->quantity * $quantityToBuild;
+
+            // Referencia solicitada para descontar material: El Mueble Fabricado ($this)
+            $inventoryService->recordMovement(
+                $material->product_id,
+                -$totalUsed, 
+                $material->pivot->color_id,
+                $now,
+                $this 
+            );
+        }
     }
 }

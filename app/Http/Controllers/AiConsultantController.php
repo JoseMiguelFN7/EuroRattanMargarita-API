@@ -62,7 +62,7 @@ class AiConsultantController extends Controller
         }
 
         $instrucciones = <<<EOT
-            Eres el Asesor Virtual Experto de "Euro Rattan Margarita". Tu objetivo es brindar una atención al cliente excepcional, cálida, profesional y persuasiva, ayudando a los usuarios a conceptualizar sus pedidos de muebles personalizados.
+            Eres el Asesor Virtual Experto de "Euro Rattan Margarita". Tu objetivo es brindar una atención al cliente excepcional, cálida, profesional y persuasiva, ayudando a los usuarios a conceptualizar sus encargos de muebles personalizados.
 
             [INFORMACIÓN DE LA EMPRESA]
             - Ubicación: Avenida 4 de Mayo con Avenida Francisco Esteban Gómez. Edif. Bolimar, PB, Local 1. Porlamar 6301, Nueva Esparta, Venezuela.
@@ -74,7 +74,7 @@ class AiConsultantController extends Controller
             2. USO EN EXTERIORES: El rattan natural NO es para la intemperie. Si el cliente quiere un mueble para patios descubiertos, adviértele honestamente que el sol directo y la lluvia deterioran el rattan muy rápido. Sugiere siempre su uso en interiores o terrazas techadas.
             3. SOLICITUD DE IMÁGENES: Si el cliente te da descripciones muy vagas (ej: "quiero una silla bonita") o pide un diseño muy específico y complejo, pídele proactivamente que suba una foto o imagen de referencia al chat para entender exactamente lo que desea.
             4. VENTA CRUZADA (TAPICERÍA): Recuerda que también vendemos materiales de tapicería. Siempre que asesores sobre un asiento (sillas, sofás), ofrece la personalización de los cojines y la tela para hacer el mueble más cómodo y a su gusto.
-            5. CIERRE DE VENTA (CTA): Tu objetivo final es que el cliente inicie el proceso formal. Cuando notes que el cliente ya tiene clara su idea, resolviste sus dudas y está satisfecho con la asesoría, invítalo directamente a presionar el botón "Crear Pedido Personalizado" que se encuentra debajo del chat.
+            5. CIERRE DE VENTA (CTA): Tu objetivo final es que el cliente inicie el proceso formal. Cuando notes que el cliente ya tiene clara su idea, resolviste sus dudas y está satisfecho con la asesoría, invítalo directamente a presionar el botón "Crear Encargo Personalizado" que se encuentra debajo del chat.
             6. LÍMITES DEL TEMA (SEGURIDAD): Eres un asesor de muebles, no un asistente general. Si el usuario te hace preguntas sobre programación, política, matemáticas o cualquier tema ajeno a Euro Rattan, responde amablemente que tu función es exclusivamente ayudar con la fabricación de muebles.
             7. FORMATO DE RESPUESTA: Mantén tus respuestas concisas, estructuradas y fáciles de leer. Usa viñetas si debes listar algo. Usa emojis con moderación para mantener un tono cálido y conversacional. Nunca respondas con muros de texto gigantes.
             EOT;
@@ -150,6 +150,84 @@ class AiConsultantController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'El asesor virtual está descansando. Intenta de nuevo en unos minutos.'
+            ], 500);
+        }
+    }
+
+    /**
+     * Extrae el contexto del chat y genera la descripción automática para el encargo
+     */
+    public function generateOrderDescription(Request $request)
+    {
+        $request->validate([
+            'session_id' => 'required|string',
+        ]);
+
+        $sessionId = $request->session_id;
+        $cacheKey = "chat_history_{$sessionId}";
+        $rawHistory = Cache::get($cacheKey, []);
+
+        if (empty($rawHistory)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No hay un historial de chat previo para resumir.',
+                'description' => ''
+            ]);
+        }
+
+        $historyForGemini = [];
+
+        // 1. Reconstruimos el historial exacto (igual que en tu método de chat)
+        foreach ($rawHistory as $turn) {
+            $partsObjects = [];
+            foreach ($turn['parts'] as $part) {
+                if (isset($part['text'])) {
+                    $partsObjects[] = new Part(text: $part['text']);
+                } elseif (isset($part['file_path'])) {
+                    $absolutePath = storage_path('app/public/' . $part['file_path']);
+                    if (file_exists($absolutePath)) {
+                        $mime = mime_content_type($absolutePath);
+                        $blob = new Blob(
+                            mimeType: MimeType::from($mime),
+                            data: base64_encode(file_get_contents($absolutePath))
+                        );
+                        $partsObjects[] = new Part(inlineData: $blob);
+                    }
+                }
+            }
+            
+            $historyForGemini[] = new Content(
+                parts: $partsObjects,
+                role: Role::from($turn['role'])
+            );
+        }
+
+        try {
+            // 2. Iniciamos el chat con todo el contexto visual y de texto
+            $chat = Gemini::generativeModel('gemini-2.5-flash')
+                ->startChat(history: $historyForGemini);
+
+            // 3. El Prompt Mágico (Ingeniería de Prompts)
+            $promptOculto = "Actúa como si fueras el cliente. Basado en toda nuestra conversación anterior, redacta una descripción clara y detallada del mueble que quiero mandar a fabricar. "
+                          . "Escríbela en primera persona (ejemplo: 'Deseo mandar a fabricar un juego de recibo...'). "
+                          . "Asegúrate de incluir dimensiones, colores, referencias a las fotos enviadas y cualquier detalle técnico que hayamos acordado. "
+                          . "IMPORTANTE: Devuelve ÚNICAMENTE el texto de la descripción. No incluyas saludos, ni comillas, ni confirmaciones, solo el texto puro para rellenar un formulario.";
+
+            // 4. Le enviamos la orden a Gemini
+            $response = $chat->sendMessage($promptOculto);
+
+            return response()->json([
+                'success' => true,
+                'description' => $response->text()
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error("Error resumiendo pedido: " . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'No se pudo generar el resumen automático.',
+                'description' => ''
             ], 500);
         }
     }
