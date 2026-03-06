@@ -267,6 +267,7 @@ class OrderController extends Controller
         $order = Order::with([
             'user:id,name,email,cellphone',
             'products',
+            'invoice',
             'payments' => function ($query) {
                 $query->latest(); 
             },
@@ -299,6 +300,9 @@ class OrderController extends Controller
                 'email'     => $order->user->email,
                 'cellphone' => $order->user->cellphone ?? 'N/A',
             ],
+            'invoice_url'   => $order->invoice && $order->invoice->pdf_url 
+                                ? asset('storage/' . $order->invoice->pdf_url) 
+                                : null,
             'products' => $order->products->map(function ($product) {
                 return [
                     'id'         => $product->id,
@@ -360,6 +364,7 @@ class OrderController extends Controller
         $order = Order::with([
             'user:id,name,email,cellphone',
             'products',
+            'invoice',
             'payments' => function ($query) {
                 $query->latest(); 
             },
@@ -395,7 +400,9 @@ class OrderController extends Controller
             'subtotal_usd'  => round($subtotalCalculated, 2),
             'igtf_amount'   => (float) $order->igtf_amount,
             'total_usd'     => round($subtotalCalculated + (float) $order->igtf_amount, 2),
-            
+            'invoice_url'   => $order->invoice && $order->invoice->pdf_url 
+                                ? asset('storage/' . $order->invoice->pdf_url) 
+                                : null,
             'user' => [
                 'name'      => $order->user->name,
                 'email'     => $order->user->email,
