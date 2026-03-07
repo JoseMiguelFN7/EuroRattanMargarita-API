@@ -3,6 +3,7 @@
 namespace App\Observers;
 
 use App\Models\CommissionSuggestion;
+use App\Services\NotificationService;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\NewSuggestionMail;
 use Illuminate\Support\Facades\Log;
@@ -14,22 +15,33 @@ class SuggestionObserver
      */
     public function created(CommissionSuggestion $suggestion): void
     {
-        if (!$suggestion->is_staff) {
+        $suggestion->loadMissing('commission.user');
+        $commission = $suggestion->commission;
+
+        if (!$commission || !$commission->user) {
             return;
         }
 
-        // Cargamos el encargo y el usuario dueño del encargo
-        $suggestion->loadMissing('commission.user');
-        
-        $commission = $suggestion->commission;
-
-        if ($commission && $commission->user) {
+        if ($suggestion->is_staff) {
+            // FLUJO A: Es del Staff -> Enviamos correo al cliente
             try {
-                // Le pasamos tanto la sugerencia como el encargo al Mailable
                 Mail::to($commission->user->email)->queue(new NewSuggestionMail($suggestion, $commission));
-                Log::info("Correo de nueva sugerencia encolado para el usuario: {$commission->user->email}");
             } catch (\Exception $e) {
-                Log::error("Error enviando correo de sugerencia para el encargo {$commission->code}: " . $e->getMessage());
+                Log::error("Error correo sugerencia {$commission->code}: " . $e->getMessage());
+            }
+        } else {
+            // PUNTO 2 (FLUJO B): Es del Cliente -> Enviamos notificación interna al panel administrativo
+            try {
+                NotificationService::notifyByPermission(
+                    'commissions.suggestions.create', // Permiso específico solicitado
+                    'Nueva Respuesta del Cliente',
+                    "{$commission->user->name} ha respondido en el hilo del encargo #{$commission->code}.",
+                    'commission',
+                    $commission->code,
+                    'info'
+                );
+            } catch (\Exception $e) {
+                Log::error("Error notificación sugerencia {$commission->code}: " . $e->getMessage());
             }
         }
     }

@@ -3,6 +3,7 @@
 namespace App\Observers;
 
 use App\Models\Commission;
+use App\Services\NotificationService;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\CommissionQuotedMail;
 use App\Mail\CommissionRejectedMail;
@@ -15,7 +16,21 @@ class CommissionObserver
      */
     public function created(Commission $commission): void
     {
-        //
+        $commission->loadMissing('user');
+        $customerName = $commission->user ? $commission->user->name : 'Un cliente';
+
+        try {
+            NotificationService::notifyByPermission(
+                'commissions.view',
+                'Nuevo Encargo Solicitado',
+                "{$customerName} ha creado una nueva solicitud de encargo (#{$commission->code}).",
+                'commission',
+                $commission->code,
+                'info'
+            );
+        } catch (\Exception $e) {
+            Log::error("Error enviando notificación de encargo creado {$commission->code}: " . $e->getMessage());
+        }
     }
 
     /**
@@ -55,6 +70,21 @@ class CommissionObserver
                     try {
                         Mail::to($commission->user->email)->queue(new CommissionRejectedMail($commission));
                         Log::info("Correo de rechazo de encargo encolado para el usuario: {$commission->user->email}");
+
+                        if (auth('sanctum')->check() && auth('sanctum')->id() === $commission->user_id) {
+                        try {
+                            NotificationService::notifyByPermission(
+                                'commissions.view',
+                                'Encargo Cancelado por el Cliente',
+                                "El cliente {$commission->user->name} ha cancelado su encargo #{$commission->code}.",
+                                'commission',
+                                $commission->code,
+                                'warning' // Amarillo/Alerta, ya que se perdió una posible venta
+                            );
+                        } catch (\Exception $e) {
+                            Log::error("Error notificación rechazo encargo {$commission->code}: " . $e->getMessage());
+                        }
+                    }
                     } catch (\Exception $e) {
                         Log::error("Error enviando correo de rechazo para el encargo {$commission->code}: " . $e->getMessage());
                     }

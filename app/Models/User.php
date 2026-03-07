@@ -96,4 +96,14 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->hasMany(InventoryAdjustment::class, 'user_id');
     }
+
+    /**
+     * Scope para filtrar usuarios que tengan un permiso específico a través de su rol.
+     */
+    public function scopeWithPermission($query, string $permissionSlug)
+    {
+        return $query->whereHas('role.permissions', function ($q) use ($permissionSlug) {
+            $q->where('slug', $permissionSlug);
+        });
+    }
 }

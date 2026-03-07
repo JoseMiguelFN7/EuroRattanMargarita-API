@@ -9,9 +9,13 @@ use App\Models\Permission;
 use App\Models\Order;
 use App\Models\Commission;
 use App\Models\CommissionSuggestion;
+use App\Models\Payment;
+use App\Models\ProductMovement;
 use App\Observers\OrderObserver;
 use App\Observers\CommissionObserver;
 use App\Observers\SuggestionObserver;
+use App\Observers\PaymentObserver;
+use App\Observers\ProductMovementObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -42,5 +46,7 @@ class AppServiceProvider extends ServiceProvider
         Order::observe(OrderObserver::class);
         Commission::observe(CommissionObserver::class);
         CommissionSuggestion::observe(SuggestionObserver::class);
+        Payment::observe(PaymentObserver::class);
+        ProductMovement::observe(ProductMovementObserver::class);
     }
 }

@@ -252,4 +252,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     //Rutas para las tasas de cambio
     Route::get('/currencyExchange/ves/history', [\App\Http\Controllers\CurrencyExchangeController::class, 'getHistoryTable']);
     Route::get('/currencyExchange/ves/chart', [\App\Http\Controllers\CurrencyExchangeController::class, 'getHistoryChart']);
+
+    //Rutas de notificaciones
+    Route::get('/notifications', [\App\Http\Controllers\NotificationController::class, 'index']);
+    Route::post('/notifications/read-all', [\App\Http\Controllers\NotificationController::class, 'markAllAsRead']);
+    Route::post('/notification/{id}/read', [\App\Http\Controllers\NotificationController::class, 'markAsRead']);
+    Route::delete('/notification/{id}/delete', [\App\Http\Controllers\NotificationController::class, 'destroy']);
+    Route::delete('/notifications/delete-all', [\App\Http\Controllers\NotificationController::class, 'destroyAll']);
 });

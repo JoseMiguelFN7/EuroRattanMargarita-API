@@ -3,6 +3,7 @@
 namespace App\Observers;
 
 use App\Models\Order;
+use App\Services\NotificationService;
 use App\Jobs\GenerateInvoiceJob;
 use App\Services\InventoryService;
 use Illuminate\Support\Facades\Log;
@@ -17,7 +18,24 @@ class OrderObserver
      */
     public function created(Order $order): void
     {
-        //
+        // Cargamos el usuario para tener su nombre en el mensaje
+        $order->loadMissing('user');
+        $customerName = $order->user ? $order->user->name : 'Un cliente';
+
+        try {
+            // Usamos nuestro super helper de notificaciones
+            NotificationService::notifyByPermission(
+                'sales.view',
+                'Nueva Orden Recibida',
+                "{$customerName} ha creado la orden #{$order->code}.",
+                'order',
+                $order->code, // Usamos el código ya que tus endpoints de detalle buscan por código
+                'success'
+            );
+        } catch (\Exception $e) {
+            // Siempre es bueno registrar si la notificación falla, para que no interrumpa la creación de la orden
+            Log::error("Error enviando notificación de nueva orden {$order->code}: " . $e->getMessage());
+        }
     }
 
     /**
