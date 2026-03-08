@@ -72,27 +72,74 @@ class ProductMovementController extends Controller
         
         $perPage = $request->input('per_page', 10);
 
-        // 2. Consultamos los movimientos con Eager Loading (Evita N+1)
-        $movements = ProductMovement::with([
+        // 2. Iniciamos el Query Builder con Eager Loading
+        $query = ProductMovement::with([
             'color',
             'movementable' => function ($morphTo) {
                 $morphTo->morphWith([
-                    Purchase::class            => ['supplier'],
-                    Order::class               => ['user'],
-                    Furniture::class           => ['product'],
-                    InventoryAdjustment::class => ['user'], 
-                    \App\Models\Commission::class => ['user'], // <-- AGREGADO: Relación con el Encargo y su usuario
+                    Purchase::class               => ['supplier'],
+                    Order::class                  => ['user'],
+                    Furniture::class              => ['product'],
+                    InventoryAdjustment::class    => ['user'], 
+                    \App\Models\Commission::class => ['user'], 
                 ]);
             }
         ])
-        ->where('product_id', $product->id)
-        ->orderBy('movement_date', 'desc') 
-        ->paginate($perPage);
+        ->where('product_id', $product->id);
 
-        // 3. Transformamos la data (Claves en inglés, valores en español)
+        // --- INICIO DE FILTROS ---
+
+        // Filtro: Rango de Fechas
+        if ($request->filled('start_date')) {
+            $query->whereDate('movement_date', '>=', $request->start_date);
+        }
+        if ($request->filled('end_date')) {
+            $query->whereDate('movement_date', '<=', $request->end_date);
+        }
+
+        // Filtro: Tipo de Movimiento (Entrada o Salida)
+        if ($request->filled('type')) {
+            if ($request->type === 'Entrada') {
+                $query->where('quantity', '>', 0);
+            } elseif ($request->type === 'Salida') {
+                $query->where('quantity', '<', 0);
+            }
+        }
+
+        // Filtro: Color
+        if ($request->filled('color_id')) {
+            // Permite filtrar por un color específico, o enviar 'null'/0 si se quiere ver los genéricos sin color
+            if ($request->color_id === 'null' || $request->color_id == 0) {
+                $query->whereNull('color_id');
+            } else {
+                $query->where('color_id', $request->color_id);
+            }
+        }
+
+        // Filtro: Referencia / Origen (Compra, Orden, Encargo, etc.)
+        if ($request->filled('reference_type')) {
+            // Mapeamos el string que envía el frontend al modelo real de Eloquent
+            $typeMap = [
+                'Compra'      => Purchase::class,
+                'Orden'       => Order::class,
+                'Fabricación' => Furniture::class,
+                'Ajuste'      => InventoryAdjustment::class,
+                'Encargo'     => \App\Models\Commission::class,
+            ];
+
+            if (array_key_exists($request->reference_type, $typeMap)) {
+                $query->where('movementable_type', $typeMap[$request->reference_type]);
+            }
+        }
+
+        // --- FIN DE FILTROS ---
+
+        // 3. Ejecutamos la consulta paginada
+        $movements = $query->orderBy('movement_date', 'desc')->paginate($perPage);
+
+        // 4. Transformamos la data (Mantenemos tu lógica intacta)
         $movements->through(function ($movement) {
             
-            // Valores por defecto en español
             $originType    = 'Otro';
             $reason        = 'Ajuste / Otro';
             $details       = '';
@@ -112,7 +159,6 @@ class ProductMovementController extends Controller
 
                 case Order::class:
                     $originType    = 'Orden';
-                    // --- MODIFICADO: Diferenciamos si es venta (negativo) o cancelación (positivo) ---
                     if ($movement->quantity > 0) {
                         $reason  = 'Reintegro por cancelación';
                         $details = 'Devolución de material/producto por Orden N° ' . ($movement->movementable->code ?? 'N/A');
@@ -140,7 +186,6 @@ class ProductMovementController extends Controller
                     $referenceId   = $movement->movementable->id ?? null;
                     break;
 
-                // --- NUEVO CASO PARA ENCARGOS ---
                 case \App\Models\Commission::class:
                     $originType    = 'Encargo';
                     $reason        = $movement->quantity > 0 ? 'Ingreso de mueble por encargo' : 'Salida por encargo';

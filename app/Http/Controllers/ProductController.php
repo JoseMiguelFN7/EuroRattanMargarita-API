@@ -272,6 +272,18 @@ class ProductController extends Controller
         return response()->json($product);
     }
 
+    public function getColors($code)
+    {
+        // Solo traemos el producto con sus colores
+        $product = Product::with('colors:id,name,hex')->where('code', $code)->firstOrFail();
+
+        // Devolvemos un arreglo limpio y directo
+        return response()->json([
+            'product_name' => $product->name, // Útil para el título de tu vista
+            'colors'       => $product->colors
+        ]);
+    }
+
     // Obtener productos por arreglo de códigos desde el request
     public function showByCodeArray(Request $request)
     {

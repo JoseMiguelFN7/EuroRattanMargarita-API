@@ -6,6 +6,7 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Messages\BroadcastMessage;
 
 class AdminAlertNotification extends Notification implements ShouldQueue
 {
@@ -36,7 +37,7 @@ class AdminAlertNotification extends Notification implements ShouldQueue
      */
     public function via(object $notifiable): array
     {
-        return ['database'];
+        return ['database', 'broadcast'];
     }
 
     /**
@@ -64,5 +65,16 @@ class AdminAlertNotification extends Notification implements ShouldQueue
             'target_id'   => $this->targetId,
             'type'        => $this->type,
         ];
+    }
+
+    public function toBroadcast(object $notifiable): BroadcastMessage
+    {
+        return new BroadcastMessage([
+            'title'       => $this->title,
+            'message'     => $this->message,
+            'target_type' => $this->targetType,
+            'target_id'   => $this->targetId,
+            'type'        => $this->type,
+        ]);
     }
 }

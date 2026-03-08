@@ -5,6 +5,10 @@ use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Broadcast;
+
+// Endpoint para verificar conexión con Reverb
+Broadcast::routes(['middleware' => ['auth:sanctum']]);
 
 // Rutas para el CRUD de usuarios
 Route::post('/user/login',[\App\Http\Controllers\UserController::class, 'login']); //Login
@@ -99,6 +103,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     //Rutas para el CRUD de Productos
     Route::post('/product/codes/', [\App\Http\Controllers\ProductController::class, 'showByCodeArray']); // Obtener productos por arreglo de Codigos
     Route::get('/product/inventoryAdjustables/', [\App\Http\Controllers\ProductController::class, 'getAdjustableProducts']); // Obtener productos cuyo inventario se puede ajustar (materiales y muebles)
+    Route::get('/products/{code}/colors', [\App\Http\Controllers\ProductController::class, 'getColors']);
     Route::get('/products/stats/counts', [\App\Http\Controllers\ProductController::class, 'getProductCounts']);
 
     //Rutas para el CRUD de materiales
