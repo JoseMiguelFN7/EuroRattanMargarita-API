@@ -46,6 +46,8 @@ class UserController extends Controller
         $user->role = $roleName; 
         $user->permissions = $permissions;
 
+        $user->makeHidden(['role_id']);
+
         return response()->json($user);
     }
 

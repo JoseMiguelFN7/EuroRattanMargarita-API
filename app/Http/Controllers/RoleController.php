@@ -14,17 +14,8 @@ class RoleController extends Controller
         // 1. Configuración (10 por defecto)
         $perPage = $request->input('per_page', 10);
 
-        // 2. Consulta Paginada
-        $roles = Role::with('permissions')->paginate($perPage);
-
-        // 3. Limpieza
-        $roles->through(function ($role) {
-            
-            // Ocultamos la tabla pivote y fechas de cada permiso
-            $role->permissions->makeHidden(['slug', 'created_at', 'updated_at']);
-            
-            return $role;
-        });
+        // 2. Consulta Paginada (Directa, sin cargar relaciones pesadas)
+        $roles = Role::paginate($perPage);
 
         return response()->json($roles);
     }

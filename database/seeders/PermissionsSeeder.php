@@ -113,7 +113,6 @@ class PermissionsSeeder extends Seeder
             'Encargos' => [
                 ['slug' => 'commissions.view',    'name' => 'Ver Encargos'],
                 ['slug' => 'commissions.create',  'name' => 'Crear Encargos'],
-                ['slug' => 'commissions.approve', 'name' => 'Aprobar Encargos'],
                 ['slug' => 'commissions.reject',  'name' => 'Rechazar Encargos'],
                 ['slug' => 'commissions.suggestions.create', 'name' => 'Crear Sugerencias de Encargos'],
                 ['slug' => 'commissions.quotations.view',   'name' => 'Ver Cotizaciones de Encargos'],

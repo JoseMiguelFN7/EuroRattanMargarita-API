@@ -10,9 +10,17 @@ class Role extends Model
         'name'
     ];
 
+    // --- NUEVO MÉTODO BLINDADO ---
     public static function getClientId()
     {
-        return self::where('name', 'Cliente')->firstOrFail()->id;
+        // Ahora busca por la columna inmutable
+        return self::where('slug', 'client')->firstOrFail()->id;
+    }
+
+    // Opcional: Puedes agregar uno para el admin si lo llegas a necesitar en el back
+    public static function getAdminId()
+    {
+        return self::where('slug', 'admin')->firstOrFail()->id;
     }
 
     public function user()
