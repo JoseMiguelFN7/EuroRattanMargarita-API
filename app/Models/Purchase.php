@@ -20,7 +20,7 @@ class Purchase extends Model
 
     protected $casts = [
         'date' => 'date',
-        'exchange_rate' => 'float',
+        'exchange_rate' => 'decimal:2',
     ];
 
     // Relación: Una compra pertenece a un proveedor

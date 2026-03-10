@@ -438,48 +438,46 @@ class ProductController extends Controller
             'items' => 'required|array',
             'items.*.productId' => 'required|exists:products,id',
             'items.*.variantId' => 'nullable|integer', 
-            'items.*.quantity' => 'required|integer|min:1',
+            // 1. CAMBIO: De 'integer' a 'numeric' y min > 0 para permitir decimales como 0.5
+            'items.*.quantity' => 'required|numeric|gt:0',
         ]);
 
         $response = [];
 
-        // 1. MAPEO DE COLORES (MODIFICADO)
-        // Traemos los objetos completos de los colores indexados por ID
         $variantIds = collect($request->items)->pluck('variantId')->filter()->unique();
-        $colorsData = \App\Models\Color::whereIn('id', $variantIds)->get()->keyBy('id');
+        $colorsData = Color::whereIn('id', $variantIds)->get()->keyBy('id');
 
-        // 2. Carga de Productos
         $productRelations = [
             'images',
-            'stocks',         // Para materiales y muebles individuales
-            'material',
+            'stocks', 
+            // 2. CAMBIO: Cargamos la unidad del material para evitar consultas N+1
+            'material.unit',
             'furniture.materials', 
             'furniture.labors',
-            'set.furnitures.product.stocks', // CRÍTICO: Para el cuello de botella del set
+            'set.furnitures.product.stocks', 
             'set.furnitures.materials',
             'set.furnitures.labors'
         ];
 
         $productIds = collect($request->items)->pluck('productId')->unique();
-        $productsData = \App\Models\Product::with($productRelations)->whereIn('id', $productIds)->get()->keyBy('id');
+        $productsData = Product::with($productRelations)->whereIn('id', $productIds)->get()->keyBy('id');
 
-        // --- LA SOLUCIÓN AL PROBLEMA DE INVENTARIO COMPARTIDO ---
         $allocatedStock = [];
 
         $getTotalStock = function ($productModel, $variantId, $isMaterial = false) {
             if ($isMaterial) {
                 if ($variantId) {
                     $stockData = $productModel->stocks->where('colorID', $variantId)->first();
-                    return $stockData ? $stockData->stock : 0;
+                    return $stockData ? (float) $stockData->stock : 0; // Casteo a float
                 } else {
-                    return $productModel->stocks->sum('stock');
+                    return (float) $productModel->stocks->sum('stock'); // Casteo a float
                 }
             } else {
                 if ($variantId) {
                     $stockData = $productModel->stocks->where('colorID', $variantId)->first();
-                    return $stockData ? $stockData->stock : 0;
+                    return $stockData ? (int) $stockData->stock : 0;
                 }
-                return 0; // Muebles siempre requieren color
+                return 0; 
             }
         };
 
@@ -489,24 +487,26 @@ class ProductController extends Controller
 
             $variantId = $item['variantId'] ?? null;
             $allocKey = $variantId ?? 'all'; 
-            $reqQty = (int) $item['quantity'];
             
-            // --- NUEVO: Extraemos la data del color ---
+            // 3. CAMBIO: Casteamos a float en lugar de int para no perder los decimales
+            $reqQty = (float) $item['quantity'];
+            
             $colorModel = $variantId ? ($colorsData[$variantId] ?? null) : null;
             $isNatural = $colorModel ? $colorModel->is_natural : true;
             $colorName = $colorModel ? $colorModel->name : ($variantId ? 'Desconocido' : 'Natural / Sin Pintar');
             
             $price = 0;
             $maxCanBuy = 0; 
+            
+            // Por defecto, asumimos que no permite decimales (Sets y Muebles)
+            $allowsDecimals = false;
 
-            // --- LÓGICA PARA JUEGOS (SETS) ---
             if ($product->set) {
                 $precios = $product->set->calcularPrecios();
                 $price = (!$isNatural) ? ($precios['pvp_color'] ?? $precios['pvp_natural']) : $precios['pvp_natural'];
 
                 if ($variantId) {
                     $maxSetsPossible = 999999;
-                    
                     foreach ($product->set->furnitures as $furniture) {
                         $fProduct = $furniture->product; 
                         
@@ -535,8 +535,6 @@ class ProductController extends Controller
                     }
                 }
             } 
-            
-            // --- LÓGICA PARA MUEBLES ---
             elseif ($product->furniture) {
                 $precios = $product->furniture->calcularPrecios();
                 $price = (!$isNatural) ? ($precios['pvp_color'] ?? $precios['pvp_natural']) : $precios['pvp_natural'];
@@ -550,10 +548,11 @@ class ProductController extends Controller
                     $allocatedStock[$product->id][$allocKey] = ($allocatedStock[$product->id][$allocKey] ?? 0) + $actualAllocate;
                 }
             } 
-            
-            // --- LÓGICA PARA MATERIALES ---
             elseif ($product->material) {
                 $price = $product->material->price; 
+                
+                // Extraemos la regla de la unidad
+                $allowsDecimals = $product->material->unit->allows_decimals ?? false;
 
                 $fTotalStock = $getTotalStock($product, $variantId, true);
                 $fAllocated  = $allocatedStock[$product->id][$allocKey] ?? 0;
@@ -565,20 +564,24 @@ class ProductController extends Controller
                 }
             }
 
-            // --- Respuesta Final para el Frontend ---
             $response[] = [
                 'id'                 => $product->id,
                 'variant_id'         => $variantId,
-                'variant_name'       => $colorName, // <-- AÑADIDO
+                'variant_name'       => $colorName,
                 'name'               => $product->name,
                 'image'              => $product->images->first() 
                                         ? asset('storage/' . $product->images->first()->url) 
                                         : null,
                 'price'              => (float) $price,
                 'discount'           => (float) $product->discount,
-                'stock_available'    => (int) $maxCanBuy, 
-                'quantity'           => (int) $reqQty,
+                
+                // 4. CAMBIO: De (int) a (float) para reflejar stocks decimales
+                'stock_available'    => (float) $maxCanBuy, 
+                'quantity'           => (float) $reqQty,
                 'insufficient_stock' => $reqQty > $maxCanBuy,
+                
+                // 5. CAMBIO: Enviamos el nuevo booleano
+                'allows_decimals'    => $allowsDecimals,
             ];
         }
 
@@ -624,6 +627,7 @@ class ProductController extends Controller
                     'unit' => $prod->material->unit ? [
                         'id'   => $prod->material->unit->id,
                         'name' => $prod->material->unit->name,
+                        'allows_decimals' => (bool) $prod->material->unit->allows_decimals,
                     ] : null,
                 ];
             }

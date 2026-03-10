@@ -169,7 +169,8 @@ class MaterialController extends Controller
             ->with([
                 'colors:id,name,hex', 
                 'material:id,product_id,unit_id', 
-                'material.unit:id,name'
+                // Añadimos 'allows_decimals' a la consulta de la tabla units
+                'material.unit:id,name,allows_decimals'
             ])
             ->orderBy('name', 'asc')
             ->get()
@@ -177,11 +178,13 @@ class MaterialController extends Controller
             // Esto se ejecuta en memoria para limpiar el JSON final
             ->map(function ($product) {
                 return [
-                    'id'     => $product->id,
-                    'code'   => $product->code,
-                    'name'   => $product->name,
-                    'unit'   => $product->material->unit->name ?? '', 
-                    'colors' => $product->colors
+                    'id'              => $product->id,
+                    'code'            => $product->code,
+                    'name'            => $product->name,
+                    'unit'            => $product->material->unit->name ?? '', 
+                    // Extraemos el booleano y nos aseguramos de que sea nativo (false por defecto)
+                    'allows_decimals' => (bool) ($product->material->unit->allows_decimals ?? false),
+                    'colors'          => $product->colors
                 ];
             });
 

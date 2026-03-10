@@ -29,7 +29,8 @@ class UnitController extends Controller
     //Crear unidad
     public function store(Request $request){
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255|unique:units,name'
+            'name' => 'required|string|max:255|unique:units,name',
+            'allows_decimals' => 'required|boolean'
         ]);
 
         if($validator->fails()){
@@ -39,7 +40,8 @@ class UnitController extends Controller
         }
 
         $unit = Unit::create([
-            'name' => $request->name
+            'name' => $request->name,
+            'allows_decimals' => $request->boolean('allows_decimals')
         ]);
 
         return response()->json($unit, 201);
@@ -54,7 +56,8 @@ class UnitController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|required|string|max:255|unique:units,name,' . $id
+            'name' => 'sometimes|required|string|max:255|unique:units,name,' . $id,
+            'allows_decimals' => 'sometimes|required|boolean'
         ]);
 
         if($validator->fails()){
@@ -65,6 +68,10 @@ class UnitController extends Controller
 
         if($request->has('name')){
             $unit->name = $request->name;
+        }
+
+        if($request->has('allows_decimals')){
+            $unit->allows_decimals = $request->boolean('allows_decimals');
         }
 
         $unit->save();

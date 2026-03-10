@@ -30,14 +30,18 @@ class RecipeGeneratorService
             ->map(function ($m) {
                 $name  = $m->product->name ?? 'N/A';
                 $unit  = $m->unit->name ?? 'u';
+                
+                // NUEVO: Traducimos el booleano a una instrucción clara para la IA
+                $allowsDecimals = ($m->unit->allows_decimals ?? false) ? 'PERMITE_DECIMALES' : 'SOLO_ENTEROS';
+                
                 $types = $m->materialTypes->pluck('name')->implode(',');
                 
-                // Limpieza de descripción para no romper el formato de tubería (|)
                 $desc = $m->product->description ?? '';
                 $desc = str_replace(["\n", "\r", "|"], " ", $desc);
                 $desc = Str::limit($desc, 80); 
 
-                return sprintf("%d|%s|%s|%s|%s", $m->id, $name, $unit, $types, $desc);
+                // Agregamos la nueva variable al formato de tubería
+                return sprintf("%d|%s|%s|%s|%s|%s", $m->id, $name, $unit, $allowsDecimals, $types, $desc);
             })->implode("\n");
 
         // ------------------------------------------------------------------
@@ -59,7 +63,7 @@ class RecipeGeneratorService
 Actúa como el Jefe de Producción de mi fábrica de muebles.
 Genera una "Hoja de Fabricación" técnica para el siguiente pedido: "{$userDescription}".
 
-INVENTARIO DISPONIBLE (Formato: ID|NOMBRE|UNIDAD|TIPOS|DESCRIPCION):
+INVENTARIO DISPONIBLE (Formato: ID|NOMBRE|UNIDAD|TIPO_CANTIDAD|TIPOS|DESCRIPCION):
 {$materialsContext}
 
 ROLES DE MANO DE OBRA (Formato: ID|NOMBRE):
@@ -71,14 +75,15 @@ REGLAS:
 1. Usa EXCLUSIVAMENTE los IDs proporcionados.
 2. Define cantidades realistas para fabricar 1 unidad.
 3. El campo 'days' en labor puede ser decimal (ej: 0.5 para medio día).
-4. La respuesta debe ser ESTRICTAMENTE un objeto JSON.
+4. REGLA CRÍTICA DE CANTIDADES: Revisa la columna TIPO_CANTIDAD del material. Si dice 'SOLO_ENTEROS', la cantidad DEBE ser un número entero (ej: 1, 2, 10). Si dice 'PERMITE_DECIMALES', puedes usar números fraccionados si es necesario (ej: 0.5, 1.2).
+5. La respuesta debe ser ESTRICTAMENTE un objeto JSON.
 
 FORMATO JSON:
 {
     "suggested_name": "Nombre comercial",
     "description": "Explicación del diseño imaginado",
     "materials": [
-        { "material_id": 1, "quantity": 0.5, "reason": "explicación" }
+        { "material_id": 1, "quantity": 2, "reason": "explicación" }
     ],
     "labors": [
         { "labor_id": 1, "days": 0.5, "reason": "explicación" }

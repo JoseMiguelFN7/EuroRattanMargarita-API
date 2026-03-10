@@ -15,8 +15,8 @@ class Material extends Model
     ];
 
     protected $casts = [
-        'min_stock' => 'float',
-        'max_stock' => 'float',
+        'min_stock' => 'decimal:2',
+        'max_stock' => 'decimal:2',
     ];
 
     public function product()

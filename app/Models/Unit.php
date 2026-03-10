@@ -7,7 +7,12 @@ use Illuminate\Database\Eloquent\Model;
 class Unit extends Model
 {
     protected $fillable = [
-        'name'
+        'name',
+        'allows_decimals'
+    ];
+
+    protected $casts = [
+        'allows_decimals' => 'boolean',
     ];
 
     public function material()
