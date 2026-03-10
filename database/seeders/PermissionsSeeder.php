@@ -79,12 +79,12 @@ class PermissionsSeeder extends Seeder
 
             // 7. ROLES Y PERMISOS
             'Roles y Permisos' => [
-                ['slug' => 'roles.view',        'name' => 'Ver Roles'],
-                ['slug' => 'roles.create',      'name' => 'Crear Roles'],
-                ['slug' => 'roles.edit',        'name' => 'Editar Roles'],
-                ['slug' => 'roles.delete',      'name' => 'Eliminar Roles'],
-                ['slug' => 'permissions.view',  'name' => 'Ver Permisos'],
-                ['slug' => 'permissions.asign', 'name' => 'Asignar Permisos'],
+                ['slug' => 'roles.view',         'name' => 'Ver Roles'],
+                ['slug' => 'roles.create',       'name' => 'Crear Roles'],
+                ['slug' => 'roles.edit',         'name' => 'Editar Roles'],
+                ['slug' => 'roles.delete',       'name' => 'Eliminar Roles'],
+                ['slug' => 'permissions.view',   'name' => 'Ver Permisos'],
+                ['slug' => 'permissions.assign', 'name' => 'Asignar Permisos'],
             ],
 
             // 8. COMPRAS
