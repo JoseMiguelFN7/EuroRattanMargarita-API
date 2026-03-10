@@ -102,6 +102,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     //Rutas para el CRUD de Productos
     Route::post('/product/codes/', [\App\Http\Controllers\ProductController::class, 'showByCodeArray']); // Obtener productos por arreglo de Codigos
+    Route::get('/product/check-code/{code}', [\App\Http\Controllers\ProductController::class, 'checkExists']); // Verificar si un código existe
     Route::get('/product/inventoryAdjustables/', [\App\Http\Controllers\ProductController::class, 'getAdjustableProducts']); // Obtener productos cuyo inventario se puede ajustar (materiales y muebles)
     Route::get('/products/{code}/colors', [\App\Http\Controllers\ProductController::class, 'getColors']);
     Route::get('/products/stats/counts', [\App\Http\Controllers\ProductController::class, 'getProductCounts']);

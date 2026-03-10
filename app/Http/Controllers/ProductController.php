@@ -272,6 +272,16 @@ class ProductController extends Controller
         return response()->json($product);
     }
 
+    public function checkExists($code)
+    {
+        // Retorna true si lo encuentra, false si no
+        $exists = Product::where('code', $code)->exists();
+
+        return response()->json([
+            'exists' => $exists
+        ]);
+    }
+
     public function getColors($code)
     {
         // Solo traemos el producto con sus colores
