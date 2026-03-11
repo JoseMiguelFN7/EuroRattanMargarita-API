@@ -120,6 +120,125 @@ class ProductController extends Controller
         return response()->json($products);
     }
 
+    public function randomByTypes(Request $request)
+    {
+        // 1. VALIDACIÓN
+        $request->validate([
+            'quantity'     => 'required|integer|min:1',
+            'category'     => 'required|string|in:material,furniture,set',
+            'type_ids'     => 'required|array',
+            'type_ids.*'   => 'integer',
+            'exclude_code' => 'nullable|string' 
+        ]);
+
+        $quantity    = $request->quantity;
+        $category    = $request->category;
+        $typeIds     = $request->type_ids;
+        $excludeCode = $request->exclude_code;
+
+        // --- OBTENER LA TASA VES ACTUAL ---
+        $vesCurrency = \App\Models\Currency::where('code', 'VES')->first();
+        $vesRate = $vesCurrency ? $vesCurrency->current_rate : 0;
+
+        $relations = [
+            'images',
+            'material',                            
+            'furniture.materials.materialTypes',   
+            'furniture.labors',                    
+            'set.furnitures.materials.materialTypes', 
+            'set.furnitures.labors'                
+        ];
+
+        // 2. FASE 1: BUSCAR PRODUCTOS DE LAS CATEGORÍAS SOLICITADAS
+        $query = Product::with($relations)->where('sell', true);
+
+        // NUEVO: Excluimos el producto que el usuario está viendo actualmente
+        if ($excludeCode) {
+            $query->where('code', '!=', $excludeCode);
+        }
+
+        // Filtramos dependiendo de lo que el frontend solicitó
+        if ($category === 'material') {
+            $query->whereHas('material.materialTypes', function ($q) use ($typeIds) {
+                $q->whereIn('material_types.id', $typeIds); 
+            });
+        } elseif ($category === 'furniture') {
+            $query->whereHas('furniture', function ($q) use ($typeIds) {
+                $q->whereIn('furniture_type_id', $typeIds);
+            });
+        } elseif ($category === 'set') {
+            $query->whereHas('set', function ($q) use ($typeIds) {
+                $q->whereIn('set_types_id', $typeIds);
+            });
+        }
+
+        $preferredProducts = $query->inRandomOrder()->take($quantity)->get();
+
+        // 3. FASE 2: RELLENAR SI FALTAN PRODUCTOS (Fallback)
+        $missingCount = $quantity - $preferredProducts->count();
+        $fallbackProducts = collect(); 
+
+        if ($missingCount > 0) {
+            $fetchedIds = $preferredProducts->pluck('id')->toArray();
+
+            $fallbackQuery = Product::with($relations)
+                ->where('sell', true)
+                ->whereNotIn('id', $fetchedIds); // Excluimos los ya seleccionados
+
+            // NUEVO: También debemos excluir el código actual de la consulta de relleno
+            if ($excludeCode) {
+                $fallbackQuery->where('code', '!=', $excludeCode);
+            }
+
+            $fallbackProducts = $fallbackQuery->inRandomOrder()
+                ->take($missingCount)
+                ->get();
+        }
+
+        // Unimos los productos preferidos con los de relleno
+        $products = $preferredProducts->merge($fallbackProducts);
+
+        // 4. TRANSFORMACIÓN Y UNIFICACIÓN
+        $products->transform(function ($product) use ($vesRate) { 
+            
+            $calculatedPrice = 0;
+
+            if ($product->material) {
+                $calculatedPrice = $product->material->price;
+            } 
+            elseif ($product->furniture) {
+                $prices = $product->furniture->calcularPrecios();
+                $calculatedPrice = $prices['pvp_natural'];
+            } 
+            elseif ($product->set) {
+                $prices = $product->set->calcularPrecios();
+                $calculatedPrice = $prices['pvp_natural'];
+            }
+
+            $product->price = round($calculatedPrice, 2);
+            $product->price_VES = round($calculatedPrice * $vesRate, 2);
+
+            $product->images->each(function ($image) {
+                $image->url = asset('storage/' . $image->url);
+                $image->makeHidden(['created_at', 'updated_at', 'product_id']);
+            });
+
+            $product->makeHidden([
+                'created_at', 
+                'updated_at', 
+                'sell', 
+                'discount',
+                'material', 
+                'furniture', 
+                'set'
+            ]);
+
+            return $product;
+        });
+
+        return response()->json($products);
+    }
+
     //Obtener producto por codigo
     public function showCod($cod)
     {

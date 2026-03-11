@@ -17,8 +17,8 @@ class ColorController extends Controller
     //Crear color
     public function store(Request $request){
         $request->validate([
-            'hex' => 'required|string|unique:colors,hex',
-            'name' => 'required|string|unique:colors,name'
+            'hex' => 'required|string|max:16|unique:colors,hex',
+            'name' => 'required|string|max:100|unique:colors,name'
         ]);
 
         $color = Color::create([
