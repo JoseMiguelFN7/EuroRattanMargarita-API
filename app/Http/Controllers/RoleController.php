@@ -37,8 +37,8 @@ class RoleController extends Controller
     //Crear rol
     public function store(Request $request){
         $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'permissions' => 'required|array',
+            'name' => 'required|string|max:50|unique:roles,name',
+            'permissions' => 'sometimes|array',
             'permissions.*' => 'integer|exists:permissions,id'
         ]);
 
@@ -52,7 +52,9 @@ class RoleController extends Controller
             'name' => $request->name
         ]);
 
-        $role->permissions()->sync($request->permissions);
+        if ($request->has('permissions')) {
+            $role->permissions()->sync($request->permissions);
+        }
 
         return response()->json($role, 201);
     }
@@ -66,7 +68,7 @@ class RoleController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'name' => 'sometimes|required|string|max:255',
+            'name' => 'sometimes|required|string|max:50|unique:roles,name,' . $role->id,
             'permissions' => 'sometimes|array',
             'permissions.*' => 'integer|exists:permissions,id'
         ]);

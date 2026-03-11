@@ -83,9 +83,9 @@ class PurchaseController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'supplier_id'         => 'required|exists:suppliers,id',
-            'code'                => 'required|string|unique:purchases,code',
+            'code'                => 'required|string|max:50|unique:purchases,code',
             'date'                => 'required|date',
-            'notes'               => 'nullable|string',
+            'notes'               => 'nullable|string|max:500',
             'products'            => 'required|array|min:1',
             'products.*.id'       => 'required|exists:products,id',
             'products.*.quantity' => 'required|numeric|min:0.01',
@@ -265,9 +265,9 @@ class PurchaseController extends Controller
 
         $validator = Validator::make($request->all(), [
             'supplier_id'         => 'required|exists:suppliers,id',
-            'code'                => 'required|string|unique:purchases,code,' . $purchase->id,
+            'code'                => 'required|string|max:50|unique:purchases,code,' . $purchase->id,
             'date'                => 'required|date',
-            'notes'               => 'nullable|string',
+            'notes'               => 'nullable|string|max:500',
             'products'            => 'required|array|min:1',
             'products.*.id'       => 'required|exists:products,id',
             'products.*.quantity' => 'required|numeric|min:0.01',

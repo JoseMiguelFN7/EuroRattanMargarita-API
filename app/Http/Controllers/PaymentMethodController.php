@@ -72,8 +72,8 @@ class PaymentMethodController extends Controller
 
         // 2. Validar (Ahora validamos currency_id)
         $validator = Validator::make($request->all(), [
-            'name'           => 'required|string|max:255',
-            'description'    => 'nullable|string',
+            'name'           => 'required|string|max:50',
+            'description'    => 'nullable|string|max:500',
             'applies_igtf'   => 'boolean',
             
             // CAMBIO CLAVE: Validamos que la moneda exista
@@ -84,8 +84,8 @@ class PaymentMethodController extends Controller
             'image'          => 'nullable|image|mimes:jpeg,png,jpg,svg|max:2048',
             
             'bank_details'               => 'nullable|array',
-            'bank_details.*.label'       => 'required_with:bank_details|string',
-            'bank_details.*.value'       => 'required_with:bank_details|string',
+            'bank_details.*.label'       => 'required_with:bank_details|string|max:100',
+            'bank_details.*.value'       => 'required_with:bank_details|string|max:255',
             'bank_details.*.is_copyable' => 'boolean',
         ]);
 

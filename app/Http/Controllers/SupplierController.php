@@ -49,12 +49,12 @@ class SupplierController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'name'          => 'required|string|max:255',
+            'name'          => 'required|string|max:50',
             'rif'           => 'required|string|max:20|unique:suppliers,rif',
             'email'         => 'nullable|email|max:255',
             'phone'         => 'nullable|string|max:20',
             'address'       => 'nullable|string|max:500',
-            'contact_name'  => 'nullable|string|max:255',
+            'contact_name'  => 'nullable|string|max:50',
             'contact_email' => 'nullable|email|max:255',
             'contact_phone' => 'nullable|string|max:20',
         ]);
@@ -105,7 +105,7 @@ class SupplierController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'name'          => 'required|string|max:255',
+            'name'          => 'required|string|max:50',
             'rif'           => [
                 'required', 
                 'string', 
@@ -115,7 +115,7 @@ class SupplierController extends Controller
             'email'         => 'nullable|email|max:255',
             'phone'         => 'nullable|string|max:20',
             'address'       => 'nullable|string|max:500',
-            'contact_name'  => 'nullable|string|max:255',
+            'contact_name'  => 'nullable|string|max:50',
             'contact_email' => 'nullable|email|max:255',
             'contact_phone' => 'nullable|string|max:20',
         ]);
