@@ -13,29 +13,31 @@ class RoleSeeder extends Seeder
      */
     public function run(): void
     {
-        // --- 1. CREACIÓN DE ROLES ---
-        // Usamos firstOrCreate para buscar por nombre y crear con slug si no existe
-        $admin = Role::firstOrCreate(
-            ['name' => 'Administrador'], 
-            ['slug' => 'admin']
+        // --- 1. CREACIÓN O ACTUALIZACIÓN DE ROLES ---
+        
+        // updateOrCreate busca por el primer arreglo y actualiza con el segundo.
+        $admin = Role::updateOrCreate(
+            ['name' => 'Administrador'], // Busca un rol con este nombre
+            ['slug' => 'admin']          // Si lo encuentra, le actualiza el slug (si no, lo crea con ambos)
         );
 
-        $client = Role::firstOrCreate(
+        $client = Role::updateOrCreate(
             ['name' => 'Cliente'], 
             ['slug' => 'client']
         );
 
-        $asesor = Role::firstOrCreate(
+        $asesor = Role::updateOrCreate(
             ['name' => 'Asesor'], 
             ['slug' => null]
         );
 
-        $coordinador = Role::firstOrCreate(
+        $coordinador = Role::updateOrCreate(
             ['name' => 'Coordinador de Inventario'], 
             ['slug' => null]
         );
 
         // --- 2. ASIGNACIÓN DE PERMISOS ---
+        // El método sync() ya se encarga de limpiar permisos viejos y poner solo los nuevos.
 
         // A. Administrador: Todos los permisos existentes
         $allPermissions = Permission::pluck('id');
@@ -114,6 +116,6 @@ class RoleSeeder extends Seeder
         ])->pluck('id');
         $coordinador->permissions()->sync($coordinadorPermissions);
 
-        $this->command->info('Roles creados y permisos asignados correctamente.');
+        $this->command->info('Roles creados/actualizados y permisos sincronizados correctamente.');
     }
 }

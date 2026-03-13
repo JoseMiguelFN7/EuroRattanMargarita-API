@@ -3,13 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <title>Comprobante Digital {{ $invoice->invoice_number }}</title>
+    <link rel="icon" href="{{ public_path('favicon.ico') }}" type="image/x-icon">
+    
     <style>
         body { font-family: Arial, sans-serif; font-size: 13px; color: #333; }
-        .header { width: 100%; margin-bottom: 20px; border-bottom: 2px solid #ccc; padding-bottom: 10px; }
-        .company-details { float: left; width: 55%; }
-        .invoice-details { float: right; width: 45%; text-align: right; }
+        
+        /* Ajustes del Header para acomodar el logo */
+        .header { width: 100%; margin-bottom: 20px; border-bottom: 2px solid #ccc; padding-bottom: 10px; display: table; }
+        .logo-container { display: table-cell; width: 15%; vertical-align: top; }
+        .company-details { display: table-cell; width: 50%; vertical-align: top; padding-left: 10px; }
+        .invoice-details { display: table-cell; width: 35%; text-align: right; vertical-align: top; }
+        
         .clear { clear: both; }
         .client-details { margin-bottom: 20px; border: 1px solid #ddd; padding: 10px; border-radius: 5px; }
+        
+        /* Estilos para la tabla invisible de los datos del cliente */
+        .client-table { width: 100%; border-collapse: collapse; margin-top: 0; }
+        .client-table th, .client-table td { border: none; padding: 3px 0; text-align: left; font-size: 13px; }
+        .client-table th { width: 25%; font-weight: bold; background-color: transparent; }
+        
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
         th { background-color: #f4f4f4; text-align: center; }
@@ -30,25 +42,40 @@
 <body>
 
     <div class="header">
+        <div class="logo-container">
+            <img src="{{ public_path('ERM_logo.webp') }}" alt="Logo Euro Rattan" style="max-width: 100px; height: auto;">
+        </div>
+
         <div class="company-details">
-            <h2 style="margin:0; color: #2c3e50;">EURO RATTAN MARGARITA, C.A.</h2>
+            <h2 style="margin:0; color: #2c3e50; font-size: 16px;">EURO RATTAN MARGARITA, C.A.</h2>
             <p style="margin:5px 0;">RIF: J-306263896<br>
             AV. 4 DE MAYO EDIF. BOLIMAR PISO PB LOCAL 1 URB. SABANAMAR PORLAMAR NUEVA ESPARTA 6301<br>
             Teléfono: (0295) 263-7418</p>
         </div>
+        
         <div class="invoice-details">
-            <h2 style="margin:0;">COMPROBANTE DIGITAL</h2>
+            <h2 style="margin:0; font-size: 16px;">COMPROBANTE DIGITAL</h2>
             <p style="margin:5px 0;"><strong>N° Comprobante:</strong> {{ $invoice->invoice_number }}<br>
             <strong>N° Control:</strong> {{ $invoice->control_number }}<br>
             <strong>Fecha de Emisión:</strong> {{ \Carbon\Carbon::parse($invoice->emitted_at ?? now())->format('d/m/Y h:i A') }}</p>
         </div>
-        <div class="clear"></div>
     </div>
 
     <div class="client-details">
-        <p style="margin:0;"><strong>Razón Social / Nombre:</strong> {{ $invoice->client_name }}<br>
-        <strong>CI / RIF:</strong> {{ $invoice->client_document }}<br>
-        <strong>Dirección:</strong> {{ $invoice->client_address }}</p>
+        <table class="client-table">
+            <tr>
+                <th>Razón Social / Nombre:</th>
+                <td>{{ $invoice->client_name }}</td>
+            </tr>
+            <tr>
+                <th>CI / RIF:</th>
+                <td>{{ $invoice->client_document }}</td>
+            </tr>
+            <tr>
+                <th>Dirección:</th>
+                <td>{{ $invoice->client_address }}</td>
+            </tr>
+        </table>
     </div>
 
     <table>
