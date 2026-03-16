@@ -6,6 +6,7 @@ use App\Models\Purchase;
 use App\Models\Currency;
 use App\Models\CurrencyExchange;
 use App\Services\InventoryService;
+use App\Jobs\GeneratePurchasesPdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -407,5 +408,21 @@ class PurchaseController extends Controller
                 'error'   => $e->getMessage()
             ], 400);
         }
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $search    = $request->input('search');
+        $startDate = $request->input('start_date');
+        $endDate   = $request->input('end_date');
+        $userId    = auth()->id();
+
+        // Despachamos el Job (no tenemos filtro de status aquí)
+        GeneratePurchasesPdf::dispatch($search, $startDate, $endDate, $userId);
+
+        return response()->json([
+            'message' => 'Generando reporte. Te notificaremos cuando esté listo.',
+            'status' => 'processing'
+        ]);
     }
 }
