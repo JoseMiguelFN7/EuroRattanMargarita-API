@@ -32,7 +32,6 @@ class GenerateMaterialsPdf implements ShouldQueue
     {
         ini_set('memory_limit', '512M');
         ini_set('max_execution_time', '300');
-        \Log::info('Iniciando Job de PDF a las: ' . now()->format('H:i:s.v'));
 
         $query = Material::with([
             'product:id,name,code,discount',
@@ -58,14 +57,6 @@ class GenerateMaterialsPdf implements ShouldQueue
 
         $materials = $query->get();
 
-        $materials->each(function ($material) {
-            if ($material->product && $material->product->images) {
-                $material->product->images->each(function ($image) {
-                    $image->url = public_path('storage/' . $image->url); 
-                });
-            }
-        });
-
         $pdf = Pdf::loadView('pdf.reports.materials', compact('materials'));
 
         // --- SOLUCIÓN AL PDF CORRUPTO ---
@@ -81,7 +72,6 @@ class GenerateMaterialsPdf implements ShouldQueue
         Storage::disk('public')->put($filePath, $pdf->output());
 
         $fileUrl = asset('storage/' . $filePath);
-        \Log::info('PDF guardado, enviando a Reverb a las: ' . now()->format('H:i:s.v'));
         event(new ReportGenerated($this->userId, $fileUrl, 'Reporte de Materiales')); // Descomentar cuando uses Reverb
     }
 }
