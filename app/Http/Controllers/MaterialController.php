@@ -10,6 +10,7 @@ use Exception;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use App\Jobs\GenerateMaterialsPdf;
 
 class MaterialController extends Controller
 {
@@ -18,6 +19,7 @@ class MaterialController extends Controller
     {
         $perPage = $request->input('per_page', 8);
         $search  = $request->input('search'); // 1. Capturamos el término de búsqueda
+        $typeIds = $request->input('type_id');
 
         // 2. Iniciamos el Query Builder con la Carga Ansiosa
         $query = Material::with([
@@ -33,6 +35,15 @@ class MaterialController extends Controller
             $query->whereHas('product', function ($q) use ($search) {
                 $q->where('name', 'LIKE', "%{$search}%")
                   ->orWhere('code', 'LIKE', "%{$search}%");
+            });
+        }
+
+        if (!empty($typeIds)) {
+            // Nos aseguramos de que siempre sea un array (por si el frontend envía uno solo por error)
+            $typeIdsArray = is_array($typeIds) ? $typeIds : [$typeIds];
+
+            $query->whereHas('materialTypes', function ($q) use ($typeIdsArray) {
+                $q->whereIn('material_types.id', $typeIdsArray); 
             });
         }
 
@@ -714,5 +725,21 @@ class MaterialController extends Controller
                 'trace' => $e->getTraceAsString()
             ], 500);
         }
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $search = $request->input('search');
+        $typeIds = $request->input('type_id');
+        $userId = auth('sanctum')->id();
+
+        // Mandamos el trabajo a la cola (Redis/Database)
+        GenerateMaterialsPdf::dispatch($search, $typeIds, $userId);
+
+        // Le respondemos al frontend en 10ms
+        return response()->json([
+            'message' => 'Generando reporte. Te notificaremos cuando esté listo.',
+            'status' => 'processing'
+        ], 202); // 202 significa "Accepted" (Aceptado para procesamiento)
     }
 }
