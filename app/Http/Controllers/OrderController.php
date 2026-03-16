@@ -9,6 +9,7 @@ use App\Models\PaymentMethod;
 use App\Models\Commission;
 use App\Models\Furniture;
 use App\Services\InventoryService;
+use App\Jobs\GenerateOrdersPdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -973,6 +974,23 @@ class OrderController extends Controller
                     'image' => $m->image ? asset('storage/' . $m->image) : null
                 ];
             })
+        ]);
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $search    = $request->input('search');
+        $status    = $request->input('status');
+        $startDate = $request->input('start_date');
+        $endDate   = $request->input('end_date');
+        $userId    = auth()->id();
+
+        // Despachamos el Job pasándole todos los filtros
+        GenerateOrdersPdf::dispatch($search, $status, $startDate, $endDate, $userId);
+
+        return response()->json([
+            'message' => 'Generando reporte. Te notificaremos cuando esté listo.',
+            'status' => 'processing'
         ]);
     }
 }

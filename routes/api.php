@@ -173,6 +173,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/products/stocks', [\App\Http\Controllers\ProductController::class, 'indexStocks']); // Obtener todos los stocks
 
     // Rutas para el CRUD de Ordenes
+    Route::get('/orders/export/pdf', [\App\Http\Controllers\OrderController::class, 'exportPdf']); // Exportar ordenes a PDF con filtros
     Route::get('/orders', [\App\Http\Controllers\OrderController::class, 'index']); // Obtener todas las ordenes
     Route::get('/orders/auth', [\App\Http\Controllers\OrderController::class, 'myOrders']); // Obtener todas las ordenes del usuario autenticado
     Route::get('/order/auth/paymentDetails/code/{code}', [\App\Http\Controllers\OrderController::class, 'getPaymentDetails']); // Obtener los detalles para reportar nuevos pagos en una orden del cliente
