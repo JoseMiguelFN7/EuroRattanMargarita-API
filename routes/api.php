@@ -237,6 +237,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/payment/{id}/verify', [\App\Http\Controllers\PaymentController::class, 'verify']); // Aprobar/Rechazar pago
 
     // Rutas para el CRUD de encargos
+    Route::get('/commissions/export/pdf', [\App\Http\Controllers\CommissionController::class, 'exportPdf']); // Exportar encargos a PDF con filtros
     Route::get('/commissions', [\App\Http\Controllers\CommissionController::class, 'index']); // Obtener todos los encargos con paginacion
     Route::get('/commission/{code}', [\App\Http\Controllers\CommissionController::class, 'show']); // Obtener un encargo específico
     Route::get('/commission/{code}/quotation', [\App\Http\Controllers\CommissionController::class, 'getQuotationByCommission']); // Obtener la cotización de un encargo específico

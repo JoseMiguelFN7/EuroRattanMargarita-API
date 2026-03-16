@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Commission;
 use App\Models\CommissionImage;
 use App\Models\Furniture;
+use App\Jobs\GenerateCommissionsPdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -560,5 +561,22 @@ class CommissionController extends Controller
         });
 
         return response()->json($furnitures);
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $search    = $request->input('search');
+        $status    = $request->input('status');
+        $startDate = $request->input('start_date');
+        $endDate   = $request->input('end_date');
+        $userId    = auth()->id();
+
+        // Despachamos el Job pasándole todos los filtros
+        GenerateCommissionsPdf::dispatch($search, $status, $startDate, $endDate, $userId);
+
+        return response()->json([
+            'message' => 'Generando reporte. Te notificaremos cuando esté listo.',
+            'status' => 'processing'
+        ]);
     }
 }
