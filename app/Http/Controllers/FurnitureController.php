@@ -7,6 +7,7 @@ use App\Models\Furniture;
 use App\Models\Product;
 use App\Models\Currency;
 use App\Services\InventoryService;
+use App\Jobs\GenerateFurnituresPdf;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 
@@ -24,6 +25,7 @@ class FurnitureController extends Controller
     {
         $perPage = $request->input('per_page', 8);
         $search  = $request->input('search');
+        $typeId  = $request->input('type_id');
 
         $query = Furniture::with([
             'furnitureType', 
@@ -38,6 +40,10 @@ class FurnitureController extends Controller
                 $q->where('name', 'LIKE', "%{$search}%")
                   ->orWhere('code', 'LIKE', "%{$search}%");
             });
+        }
+
+        if ($typeId) {
+            $query->where('furniture_type_id', $typeId); 
         }
 
         $furnitures = $query->paginate($perPage);
@@ -675,5 +681,20 @@ class FurnitureController extends Controller
                 'message' => 'Actualmente no se pueden fabricar los muebles solicitados.'
             ], 400); // Puedes usar 400 o 422 según lo maneje tu frontend
         }
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $search = $request->input('search');
+        $typeId = $request->input('type_id'); // Un solo ID
+        $userId = auth()->id();
+
+        // Despachamos el Job (recuerda importar la clase GenerateFurnituresPdf arriba)
+        GenerateFurnituresPdf::dispatch($search, $typeId, $userId);
+
+        return response()->json([
+            'message' => 'Generando reporte. Te notificaremos cuando esté listo.',
+            'status' => 'processing'
+        ]);
     }
 }

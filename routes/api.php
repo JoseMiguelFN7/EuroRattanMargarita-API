@@ -122,6 +122,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/materialType/{id}', [\App\Http\Controllers\MaterialTypeController::class, 'destroy']); //Eliminar un tipo de material
 
     //Rutas para el CRUD de muebles
+    Route::get('/furnitures/export/pdf', [\App\Http\Controllers\FurnitureController::class, 'exportPdf']); //Exportar muebles a PDF
     Route::get('/furnitures/noPage/all', [\App\Http\Controllers\FurnitureController::class, 'listAll']); //Obtener todos los muebles sin paginación
     Route::post('/furniture', [\App\Http\Controllers\FurnitureController::class, 'store']); //Crear un mueble
     Route::post('/furniture/manufacture/{id}', [\App\Http\Controllers\FurnitureController::class, 'manufacture']); // adicionar existencias de un mueble
