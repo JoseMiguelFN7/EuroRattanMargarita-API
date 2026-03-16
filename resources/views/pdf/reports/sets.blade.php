@@ -2,12 +2,9 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Reporte de Muebles</title>
+    <title>Reporte de Juegos</title>
     <style>
-        @page {
-            margin: 120px 30px 60px 30px;
-            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-        }
+        @page { margin: 120px 30px 60px 30px; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
         header { position: fixed; top: -90px; left: 0px; right: 0px; height: 80px; border-bottom: 2px solid #222; padding-bottom: 10px; }
         .logo-container { float: left; width: 30%; }
         .logo-container img { max-height: 65px; }
@@ -21,10 +18,26 @@
         .text-left { text-align: left; }
         .text-right { text-align: right; }
         tbody tr:nth-child(even) { background-color: #fafafa; }
-        .color-box { display: inline-block; width: 12px; height: 12px; border: 1px solid #999; border-radius: 50%; margin-bottom: -2px; margin-right: 2px; }
-        .stock-list { list-style: none; padding: 0; margin: 0; font-size: 9px; text-align: right; }
         footer { position: fixed; bottom: -40px; left: 0px; right: 0px; height: 30px; text-align: center; font-size: 10px; color: #999; border-top: 1px solid #eee; padding-top: 5px; }
         .page-number:after { content: counter(page); }
+        
+        /* ESTAS SON LAS CLASES QUE FALTABAN PARA EL CÍRCULO Y LA LISTA */
+        .color-box { 
+            display: inline-block; 
+            width: 12px; 
+            height: 12px; 
+            border: 1px solid #999; 
+            border-radius: 50%; /* Esto lo hace redondo */
+            margin-bottom: -2px; 
+            margin-right: 2px; 
+        }
+        .stock-list { 
+            list-style: none; 
+            padding: 0; 
+            margin: 0; 
+            font-size: 9px; 
+            text-align: right; 
+        }
     </style>
 </head>
 <body>
@@ -46,69 +59,65 @@
     </footer>
 
     <main>
-        <h2>Reporte de Muebles</h2>
+        <h2>Catálogo de Juegos de Muebles</h2>
 
         <table>
             <thead>
                 <tr>
-                    <th width="10%">CÓDIGO</th>
-                    <th width="28%" class="text-left">NOMBRE / TIPO</th>
+                    <th width="12%">CÓDIGO</th>
+                    <th width="32%" class="text-left">NOMBRE / TIPO</th>
                     <th width="14%">PVP NAT.</th>
                     <th width="14%">PVP COL.</th>
-                    <th width="10%">DESC.</th>
-                    <th width="24%" class="text-right">STOCK</th>
+                    <th width="8%">DESC.</th>
+                    <th width="20%" class="text-right">DISPONIBILIDAD</th>
                 </tr>
             </thead>
             <tbody>
-                @forelse ($furnitures as $furniture)
+                @forelse ($sets as $set)
                     <tr>
-                        <td>{{ $furniture->product->code ?? 'N/A' }}</td>
+                        <td>{{ $set->product->code ?? 'N/A' }}</td>
 
                         <td class="text-left">
-                            <strong>{{ $furniture->product->name ?? 'S/N' }}</strong><br>
+                            <strong>{{ $set->product->name ?? 'S/N' }}</strong><br>
                             <span style="font-size: 9px; color: #666;">
-                                {{ $furniture->furnitureType->name ?? 'Sin tipo' }}
+                                {{ $set->setType->name ?? 'Sin tipo' }}
                             </span>
                         </td>
 
-                        <td>
-                            ${{ number_format($furniture->pvp_natural, 2) }}
-                        </td>
+                        <td>${{ number_format($set->pvp_natural, 2) }}</td>
+                        
+                        <td>${{ number_format($set->pvp_color, 2) }}</td>
 
                         <td>
-                            ${{ number_format($furniture->pvp_color, 2) }}
-                        </td>
-
-                        <td>
-                            @if($furniture->product && $furniture->product->discount > 0)
-                                <span style="color: red; font-weight: bold;">-{{ $furniture->product->discount }}%</span>
+                            @if($set->product && $set->product->discount > 0)
+                                <span style="color: red; font-weight: bold;">-{{ $set->product->discount }}%</span>
                             @else
                                 <span style="color: #999;">-</span>
                             @endif
                         </td>
 
                         <td class="text-right">
-                            @if($furniture->product && $furniture->product->stocks->count() > 0)
+                            @if(!empty($set->available_colors) && count($set->available_colors) > 0)
+                                
                                 @php
-                                    $stocksConColor = $furniture->product->stocks->filter(function($item) {
-                                        return !empty($item->color_name) && !empty($item->color);
-                                    });
+                                    $totalDisponible = 0;
+                                    foreach($set->available_colors as $colorData) {
+                                        $totalDisponible += $colorData['stock'] ?? 0;
+                                    }
                                 @endphp
 
                                 <div style="margin-bottom: 5px; font-size: 11px;">
-                                    <strong>Total: {{ $furniture->product->stocks->sum('stock') }}</strong>
+                                    <strong>Total: {{ $totalDisponible }}</strong>
                                 </div>
-                                
-                                @if($stocksConColor->count() > 0)
-                                    <ul class="stock-list">
-                                        @foreach($stocksConColor as $stockItem)
-                                            <li style="color: #444; margin-bottom: 2px;">
-                                                <span class="color-box" style="background-color: {{ $stockItem->color }}; width: 8px; height: 8px;"></span>
-                                                {{ $stockItem->color_name }}: <strong>{{ $stockItem->stock }}</strong>
-                                            </li>
-                                        @endforeach
-                                    </ul>
-                                @endif
+
+                                <ul class="stock-list">
+                                    @foreach($set->available_colors as $colorData)
+                                        <li style="color: #444; margin-bottom: 2px;">
+                                            <span class="color-box" style="background-color: {{ $colorData['hex'] ?? '#ccc' }}; width: 8px; height: 8px;"></span>
+                                            {{ $colorData['name'] ?? 'N/A' }}: <strong>{{ $colorData['stock'] ?? 0 }}</strong>
+                                        </li>
+                                    @endforeach
+                                </ul>
                             @else
                                 <span style="color: red; font-weight: bold;">0</span>
                             @endif
@@ -116,8 +125,8 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5" style="text-align: center; padding: 25px; color: #666;">
-                            No se encontraron muebles registrados o que coincidan con la búsqueda.
+                        <td colspan="6" style="text-align: center; padding: 25px; color: #666;">
+                            No se encontraron juegos registrados o que coincidan con la búsqueda.
                         </td>
                     </tr>
                 @endforelse

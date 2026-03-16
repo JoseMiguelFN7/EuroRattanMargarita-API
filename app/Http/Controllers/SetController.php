@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Set;
 use App\Models\Product;
 use App\Models\Currency;
+use App\Jobs\GenerateSetsPdf;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -17,7 +18,8 @@ class SetController extends Controller
     public function index(Request $request)
     {
         $perPage = $request->input('per_page', 10);
-        $search  = $request->input('search'); // 1. Capturamos la búsqueda
+        $search  = $request->input('search');
+        $typeId  = $request->input('type_id');
 
         // 2. INICIAMOS EL QUERY BUILDER CON LA CARGA DE RELACIONES
         // Necesitamos 'materials.materialTypes' para distinguir Insumo vs Tapicería
@@ -36,6 +38,10 @@ class SetController extends Controller
                 $q->where('name', 'LIKE', "%{$search}%")
                   ->orWhere('code', 'LIKE', "%{$search}%");
             });
+        }
+
+        if ($typeId) {
+            $query->where('set_types_id', $typeId); 
         }
 
         // 4. EJECUTAMOS LA PAGINACIÓN
@@ -488,5 +494,19 @@ class SetController extends Controller
                 'trace' => $e->getTraceAsString()
             ], 500);
         }
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $search = $request->input('search');
+        $typeId = $request->input('type_id');
+        $userId = auth()->id();
+
+        GenerateSetsPdf::dispatch($search, $typeId, $userId);
+
+        return response()->json([
+            'message' => 'Generando reporte. Te notificaremos cuando esté listo.',
+            'status' => 'processing'
+        ]);
     }
 }

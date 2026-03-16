@@ -143,6 +143,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/labor/{id}', [\App\Http\Controllers\LaborController::class, 'destroy']); //Eliminar MO
 
     //Rutas para el CRUD de juegos
+    Route::get('/sets/export/pdf', [\App\Http\Controllers\SetController::class, 'exportPdf']); //Exportar juegos a PDF
     Route::post('/set', [\App\Http\Controllers\SetController::class, 'store']); //Crear un juego
     Route::get('/set/cod/{cod}', [\App\Http\Controllers\SetController::class, 'showCod']); // Obtener un juego específico por Cod
     Route::post('/set/{id}', [\App\Http\Controllers\SetController::class, 'update']); //Actualizar un juego
