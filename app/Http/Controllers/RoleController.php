@@ -20,6 +20,12 @@ class RoleController extends Controller
         return response()->json($roles);
     }
 
+    public function all()
+    {
+        $roles = Role::orderBy('name', 'asc')->get();
+        return response()->json($roles);
+    }
+
     //Obtener rol por ID
     public function show($id)
     {

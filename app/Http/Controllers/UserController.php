@@ -54,21 +54,35 @@ class UserController extends Controller
     // Obtener todos los usuarios con paginación
     public function index(Request $request)
     {
-        // 1. Configuración (Por defecto 10 usuarios por página)
         $perPage = $request->input('per_page', 10);
+        $search  = $request->input('search');
+        $roleId  = $request->input('role_id');
 
-        // 2. Query con Paginación
-        $users = User::with('role')->paginate($perPage);
+        $query = User::with('role');
 
-        // 3. Transformación de datos
+        // 1. Buscador Abierto (Nombre, Correo, Documento o Teléfono)
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%")
+                  ->orWhere('document', 'like', "%{$search}%")
+                  ->orWhere('cellphone', 'like', "%{$search}%");
+            });
+        }
+
+        // 2. Filtro por Rol Exacto
+        if ($roleId) {
+            $query->where('role_id', $roleId);
+        }
+
+        $users = $query->paginate($perPage);
+
+        // Transformación de datos
         $users->through(function ($user) {
-            
-            // Transformar URL de imagen
             $user->image = $user->image ? asset('storage/' . $user->image) : null;
-            
             $user->role_name = $user->role ? $user->role->name : null;
-            $user->unsetRelation('role'); // Oculta el objeto role completo
-
+            
+            $user->unsetRelation('role');
             $user->makeHidden(['id', 'role_id']);
 
             return $user;

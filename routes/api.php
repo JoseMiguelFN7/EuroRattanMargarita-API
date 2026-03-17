@@ -89,6 +89,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/user/{user}', [\App\Http\Controllers\UserController::class, 'destroy']); // Eliminar un usuario
 
     // Rutas para el CRUD de roles y permisos
+    Route::get('/roles/all', [\App\Http\Controllers\RoleController::class, 'all']); // Obtener todos los roles sin paginacion
     Route::get('/roles', [\App\Http\Controllers\RoleController::class, 'index']); // Obtener todos los roles
     Route::get('/role/{id}', [\App\Http\Controllers\RoleController::class, 'show']); // Obtener un rol específico
     Route::post('/role', [\App\Http\Controllers\RoleController::class, 'store']); //Crear un rol
