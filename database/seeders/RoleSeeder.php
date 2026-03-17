@@ -27,7 +27,7 @@ class RoleSeeder extends Seeder
         );
 
         $asesor = Role::updateOrCreate(
-            ['name' => 'Asesor'], 
+            ['name' => 'Atención al Cliente'], 
             ['slug' => null]
         );
 
