@@ -213,8 +213,9 @@ class CommissionController extends Controller
             'furnitures.furnitureType:id,name',
             'furnitures.product.images',
             'furnitures.product.colors',
-            'furnitures.materials.materialTypes', 
-            'furnitures.labors'                   
+            // CAMBIO CRÍTICO AQUÍ: Usamos la nueva relación singular y anidada
+            'furnitures.materials.materialType.category', 
+            'furnitures.labors'
         ])
         ->where('code', $code)
         ->firstOrFail();
@@ -241,12 +242,12 @@ class CommissionController extends Controller
                     $product->colors->makeHidden(['pivot', 'created_at', 'updated_at']);
                 }
 
-                // 3. Calcular precios
+                // 3. Calcular precios (Ahora funcionará ultra rápido gracias a la carga ansiosa)
                 $precios = $furniture->calcularPrecios();
                 $furniture->pvp_natural = $precios['pvp_natural'];
                 $furniture->pvp_color = $precios['pvp_color'];
 
-                // 4. NUEVO: Lógica de Cantidad y Colores Confirmados
+                // 4. Lógica de Cantidad y Colores Confirmados
                 $furniture->confirmed_quantity = 0;
                 $furniture->confirmed_colors = []; 
 
@@ -325,7 +326,8 @@ class CommissionController extends Controller
             'furnitures.furnitureType:id,name',
             'furnitures.product.images',
             'furnitures.product.colors',
-            'furnitures.materials.materialTypes',
+            // CAMBIO CRÍTICO: Nueva estructura singular y anidada
+            'furnitures.materials.materialType.category',
             'furnitures.labors'
         ])
         ->where('code', $code)
@@ -352,12 +354,12 @@ class CommissionController extends Controller
                     $product->colors->makeHidden(['pivot', 'created_at', 'updated_at']);
                 }
 
-                // Calcular precios
+                // Calcular precios (ahora corre súper rápido por la carga ansiosa)
                 $precios = $furniture->calcularPrecios();
                 $furniture->pvp_natural = $precios['pvp_natural'];
                 $furniture->pvp_color = $precios['pvp_color'];
 
-                // NUEVO: Cantidad y Colores Confirmados
+                // Cantidad y Colores Confirmados
                 $furniture->confirmed_quantity = 0;
                 $furniture->confirmed_colors = [];
 

@@ -123,6 +123,18 @@
         }
 
         .page-number:after { content: counter(page); }
+        
+        /* Nueva clase para el badge de la categoría */
+        .category-badge {
+            font-size: 8px;
+            color: #666;
+            background-color: #e9e9e9;
+            padding: 2px 4px;
+            border-radius: 3px;
+            display: inline-block;
+            margin-top: 3px;
+            text-transform: uppercase;
+        }
     </style>
 </head>
 <body>
@@ -150,7 +162,7 @@
             <thead>
                 <tr>
                     <th width="14%">CÓDIGO</th>
-                    <th width="46%" class="text-left">NOMBRE / DESC.</th>
+                    <th width="46%" class="text-left">NOMBRE / CATEGORÍA.</th>
                     <th width="12%">PRECIO</th>
                     <th width="8%">DESC.</th>
                     <th width="20%" class="text-right">STOCK</th>
@@ -162,7 +174,14 @@
                         <td>{{ $material->product->code ?? 'N/A' }}</td>
 
                         <td class="text-left">
-                            <strong>{{ $material->product->name ?? 'S/N' }}</strong>
+                            <strong>{{ $material->product->name ?? 'S/N' }}</strong><br>
+                            
+                            {{-- NUEVO: Aquí mostramos la Categoría y el Tipo --}}
+                            @if($material->materialType)
+                                <span class="category-badge">
+                                    {{ $material->materialType->category->name ?? 'Sin Categoría' }} &rsaquo; {{ $material->materialType->name }}
+                                </span>
+                            @endif
                         </td>
 
                         <td>
@@ -210,7 +229,8 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="6" style="text-align: center; padding: 25px; color: #666;">
+                        {{-- Corregido el colspan a 5 --}}
+                        <td colspan="5" style="text-align: center; padding: 25px; color: #666;">
                             No se encontraron materiales registrados o que coincidan con la búsqueda.
                         </td>
                     </tr>

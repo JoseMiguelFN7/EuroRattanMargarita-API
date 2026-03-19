@@ -31,7 +31,7 @@ class FurnitureController extends Controller
             'furnitureType', 
             'product.images', 
             'product.stocks',
-            'materials.materialTypes',
+            'materials.materialType.category',
             'labors'
         ]);
 
@@ -106,7 +106,7 @@ class FurnitureController extends Controller
             'furnitureType', 
             'product.images', 
             'product.stocks',
-            'materials.materialTypes',
+            'materials.materialType.category', // <-- CAMBIO CRÍTICO: Nueva estructura anidada
             'labors'
         ])->paginate($perPage);
 
@@ -120,6 +120,7 @@ class FurnitureController extends Controller
                 });
             }
 
+            // Al tener la carga ansiosa correcta arriba, este método se ejecuta al instante
             $precios = $furniture->calcularPrecios();
             $furniture->pvp_natural = $precios['pvp_natural'];
             $furniture->pvp_color = $precios['pvp_color'];
@@ -154,23 +155,27 @@ class FurnitureController extends Controller
             })
             ->with([
                 'furnitureType', 
-                'materials.materialTypes',
+                'materials.materialType.category', // <-- CAMBIO 1: Relación anidada singular
                 'labors',
                 'product.stocks'
             ])->get();
 
         $furnitures->map(function ($furniture) {
-            $costSupplies = 0;
+            $costStructural = 0; // <-- CAMBIO 3: Renombrado por coherencia
             $costUpholstery = 0;
 
             foreach ($furniture->materials as $material) {
                 $subtotal = $material->price * $material->pivot->quantity;
+                
+                // Extraemos el nombre de la categoría para no repetir código
+                $categoriaName = $material->materialType->category->name ?? '';
 
-                if ($material->materialTypes->contains('name', 'Tapicería')) {
+                // <-- CAMBIO 2: Evaluación directa
+                if ($categoriaName === 'Tapicería') {
                     $costUpholstery += $subtotal;
                 } 
-                elseif ($material->materialTypes->contains('name', 'Insumo')) {
-                    $costSupplies += $subtotal;
+                elseif ($categoriaName === 'Estructural') {
+                    $costStructural += $subtotal;
                 }
             }
 
@@ -179,7 +184,7 @@ class FurnitureController extends Controller
             }, 0);
 
             $furniture->costs = [
-                'supplies'    => round($costSupplies, 2),
+                'structural'  => round($costStructural, 2), // <-- CAMBIO 3: Nueva llave para el front
                 'upholstery'  => round($costUpholstery, 2),
                 'labor'       => round($costLabor, 2),
             ];

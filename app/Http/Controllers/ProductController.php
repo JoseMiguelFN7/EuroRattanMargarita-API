@@ -49,27 +49,26 @@ class ProductController extends Controller
         }
 
         // --- 1. OBTENER LA TASA VES ACTUAL ---
-        // Gracias a tu ajuste en el modelo, esto ya trae la tasa vigente correcta
         $vesCurrency = Currency::where('code', 'VES')->first();
         $vesRate = $vesCurrency ? $vesCurrency->current_rate : 0;
 
         // 2. CARGA DE RELACIONES PROFUNDA
-        // Cargamos todo lo necesario para que las fórmulas de precio funcionen sin hacer consultas extra
+        // CAMBIO CRÍTICO: Actualizamos la carga para usar la nueva arquitectura singular
         $products = Product::with([
             'images',
-            'material',                            // Precio directo
-            'furniture.materials.materialTypes',   // Fórmula Mueble
-            'furniture.labors',                    // Fórmula Mueble
-            'set.furnitures.materials.materialTypes', // Fórmula Set
-            'set.furnitures.labors'                // Fórmula Set
+            'material',                                            // Precio directo
+            'furniture.materials.materialType.category',           // <-- Fórmula Mueble Optimizada
+            'furniture.labors',                                    // Fórmula Mueble
+            'set.furnitures.materials.materialType.category',      // <-- Fórmula Set Optimizada
+            'set.furnitures.labors'                                // Fórmula Set
         ])
         ->where('sell', true)
         ->inRandomOrder()
         ->take($quantity)
         ->get();
 
-        // 3. TRANSFORMACIÓN Y UNIFICACIÓN
-        $products->transform(function ($product) use ($vesRate) { // <-- Pasamos $vesRate aquí
+        // 3. TRANSFORMACIÓN Y UNIFICACIÓN (Intacta para el Frontend)
+        $products->transform(function ($product) use ($vesRate) { 
             
             // --- A. LÓGICA DE PRECIOS EN CAMPO 'price' ---
             $calculatedPrice = 0;
@@ -93,7 +92,6 @@ class ProductController extends Controller
             $product->price = round($calculatedPrice, 2);
 
             // --- B. CÁLCULO EN BOLÍVARES (VES) ---
-            // Multiplicamos el precio calculado por la tasa vigente y redondeamos
             $product->price_VES = round($calculatedPrice * $vesRate, 2);
 
             // --- C. LIMPIEZA DE IMÁGENES ---
@@ -103,7 +101,6 @@ class ProductController extends Controller
             });
 
             // --- D. LIMPIEZA FINAL ---
-            // Ocultamos las relaciones complejas para dejar el objeto plano
             $product->makeHidden([
                 'created_at', 
                 'updated_at', 
@@ -122,53 +119,64 @@ class ProductController extends Controller
 
     public function randomByTypes(Request $request)
     {
-        // 1. VALIDACIÓN
+        // 1. VALIDACIÓN INTELIGENTE
+        // 'type_id' y 'category_id' no son obligatorios siempre, pero DEBE venir al menos uno.
         $request->validate([
             'quantity'     => 'required|integer|min:1',
-            'category'     => 'required|string|in:material,furniture,set',
-            'type_ids'     => 'required|array',
-            'type_ids.*'   => 'integer',
+            'category'     => 'required|string|in:material,furniture,set', // La familia del producto
+            'type_id'      => 'required_without:category_id|nullable|integer', 
+            'category_id'  => 'required_without:type_id|nullable|integer',     
             'exclude_code' => 'nullable|string' 
         ]);
 
         $quantity    = $request->quantity;
-        $category    = $request->category;
-        $typeIds     = $request->type_ids;
+        $productFamily = $request->category;
+        $typeId      = $request->type_id;
+        $categoryId  = $request->category_id;
         $excludeCode = $request->exclude_code;
 
         // --- OBTENER LA TASA VES ACTUAL ---
         $vesCurrency = \App\Models\Currency::where('code', 'VES')->first();
         $vesRate = $vesCurrency ? $vesCurrency->current_rate : 0;
 
+        // Carga ansiosa optimizada
         $relations = [
             'images',
-            'material',                            
-            'furniture.materials.materialTypes',   
-            'furniture.labors',                    
-            'set.furnitures.materials.materialTypes', 
-            'set.furnitures.labors'                
+            'material',
+            'furniture.materials.materialType.category',
+            'furniture.labors',
+            'set.furnitures.materials.materialType.category', 
+            'set.furnitures.labors'
         ];
 
-        // 2. FASE 1: BUSCAR PRODUCTOS DE LAS CATEGORÍAS SOLICITADAS
+        // 2. FASE 1: BUSCAR PRODUCTOS RELACIONADOS
         $query = Product::with($relations)->where('sell', true);
 
-        // NUEVO: Excluimos el producto que el usuario está viendo actualmente
         if ($excludeCode) {
             $query->where('code', '!=', $excludeCode);
         }
 
-        // Filtramos dependiendo de lo que el frontend solicitó
-        if ($category === 'material') {
-            $query->whereHas('material.materialTypes', function ($q) use ($typeIds) {
-                $q->whereIn('material_types.id', $typeIds); 
+        // --- FILTROS DINÁMICOS SEGÚN LA FAMILIA ---
+        if ($productFamily === 'material') {
+            // En materiales podemos buscar por Tipo específico o por Categoría general
+            if ($typeId) {
+                $query->whereHas('material', function ($q) use ($typeId) {
+                    $q->where('material_type_id', $typeId); 
+                });
+            } elseif ($categoryId) {
+                $query->whereHas('material.materialType', function ($q) use ($categoryId) {
+                    $q->where('material_category_id', $categoryId);
+                });
+            }
+        } elseif ($productFamily === 'furniture') {
+            // Los muebles solo usan Tipo
+            $query->whereHas('furniture', function ($q) use ($typeId) {
+                $q->where('furniture_type_id', $typeId);
             });
-        } elseif ($category === 'furniture') {
-            $query->whereHas('furniture', function ($q) use ($typeIds) {
-                $q->whereIn('furniture_type_id', $typeIds);
-            });
-        } elseif ($category === 'set') {
-            $query->whereHas('set', function ($q) use ($typeIds) {
-                $q->whereIn('set_types_id', $typeIds);
+        } elseif ($productFamily === 'set') {
+            // Los juegos solo usan Tipo
+            $query->whereHas('set', function ($q) use ($typeId) {
+                $q->where('set_types_id', $typeId);
             });
         }
 
@@ -183,11 +191,19 @@ class ProductController extends Controller
 
             $fallbackQuery = Product::with($relations)
                 ->where('sell', true)
-                ->whereNotIn('id', $fetchedIds); // Excluimos los ya seleccionados
+                ->whereNotIn('id', $fetchedIds); 
 
-            // NUEVO: También debemos excluir el código actual de la consulta de relleno
             if ($excludeCode) {
                 $fallbackQuery->where('code', '!=', $excludeCode);
+            }
+
+            // Mantenemos el relleno dentro de la misma familia de productos
+            if ($productFamily === 'material') {
+                $fallbackQuery->whereHas('material');
+            } elseif ($productFamily === 'furniture') {
+                $fallbackQuery->whereHas('furniture');
+            } elseif ($productFamily === 'set') {
+                $fallbackQuery->whereHas('set');
             }
 
             $fallbackProducts = $fallbackQuery->inRandomOrder()
@@ -195,7 +211,7 @@ class ProductController extends Controller
                 ->get();
         }
 
-        // Unimos los productos preferidos con los de relleno
+        // Unimos los productos
         $products = $preferredProducts->merge($fallbackProducts);
 
         // 4. TRANSFORMACIÓN Y UNIFICACIÓN
@@ -244,15 +260,15 @@ class ProductController extends Controller
     {
         // 1. CARGA DE RELACIONES (Usando la vista de stocks para rendimiento)
         $product = Product::with([
-            'material.materialTypes', 
+            'material.materialType.category', // <-- CAMBIO CRÍTICO: Nueva estructura anidada
             'material.unit', 
             'furniture.furnitureType', 
-            'furniture.materials.materialTypes', 
+            'furniture.materials.materialType.category', // <-- CAMBIO CRÍTICO
             'furniture.labors', 
             'set.setType',
             'set.furnitures.product.images',
             'set.furnitures.product.stocks',
-            'set.furnitures.materials.materialTypes',
+            'set.furnitures.materials.materialType.category', // <-- CAMBIO CRÍTICO
             'set.furnitures.labors',
             'images',
             'stocks'
@@ -268,19 +284,15 @@ class ProductController extends Controller
         // -----------------------------------------
 
         // 2. LIMPIEZA DE PRODUCTO (Nivel Raíz)
-        // Mantenemos la estructura, solo ocultamos fechas y campos internos
         $product->makeHidden(['created_at', 'updated_at']);
 
         // 3. LIMPIEZA DE IMÁGENES
-        // NO las convertimos en strings simples. Mantenemos el array de objetos 
-        // porque tu front seguro espera 'image.url' o 'image.id'.
         $product->images->each(function ($image) {
             $image->url = asset('storage/' . $image->url);
             $image->makeHidden(['created_at', 'updated_at', 'product_id']);
         });
 
         // 4. LIMPIEZA DEL STOCK
-        // Mantenemos el array de objetos, solo quitamos la redundancia
         if ($product->stocks) {
             $product->stocks->makeHidden(['productID', 'productCode']);
         }
@@ -291,20 +303,22 @@ class ProductController extends Controller
         if ($product->material) {
             $product->material->price_VES = round($product->material->price * $vesRate, 2);
 
-            // Ocultamos los hermanos nulos para no enviar "furniture": null
             $product->makeHidden(['furniture', 'set']);
             
-            // Limpiamos el material
-            $product->material->makeHidden(['created_at', 'updated_at', 'product_id', 'unit_id']);
+            // Limpiamos el material (agregamos material_type_id)
+            $product->material->makeHidden(['created_at', 'updated_at', 'product_id', 'unit_id', 'material_type_id']);
             
-            // Limpiamos la Unidad (Mantenemos el objeto {id, name})
             if ($product->material->unit) {
-                $product->material->unit->makeHidden(['created_at', 'updated_at']);
+                $product->material->unit->makeHidden(['created_at', 'updated_at', 'id']);
             }
 
-            // Limpiamos los Tipos (Mantenemos array de objetos)
-            if ($product->material->materialTypes) {
-                $product->material->materialTypes->makeHidden(['pivot', 'created_at', 'updated_at']);
+            // <-- CAMBIO: Limpiamos la nueva estructura singular
+            if ($product->material->materialType) {
+                $product->material->materialType->makeHidden(['created_at', 'updated_at', 'material_category_id']);
+                
+                if ($product->material->materialType->category) {
+                    $product->material->materialType->category->makeHidden(['created_at', 'updated_at']);
+                }
             }
         } 
         
@@ -312,24 +326,19 @@ class ProductController extends Controller
         elseif ($product->furniture) {
             $furniture = $product->furniture;
 
-            // A. Precios (Tu lógica existente)
             $precios = $furniture->calcularPrecios();
             $furniture->pvp_natural = $precios['pvp_natural'];
             $furniture->pvp_color = $precios['pvp_color'];
 
-            // --- NUEVO: CÁLCULOS EN BOLÍVARES (VES) ---
             $furniture->pvp_natural_VES = round($precios['pvp_natural'] * $vesRate, 2);
             $furniture->pvp_color_VES   = round($precios['pvp_color'] * $vesRate, 2);
 
-            // B. Limpieza GENERAL del Mueble
-            // Ocultamos 'product' para evitar el bucle infinito y datos repetidos
             $furniture->makeHidden(['product', 'materials', 'labors', 'created_at', 'updated_at', 'product_id']);
 
             if ($furniture->furnitureType) {
                 $furniture->furnitureType->makeHidden(['created_at', 'updated_at']);
             }
 
-            // Ocultamos relaciones hermanas vacías
             $product->makeHidden(['material', 'set']);
         }
 
@@ -338,23 +347,18 @@ class ProductController extends Controller
             $product->makeHidden(['material', 'furniture']);
             $set = $product->set;
 
-            // A. Cálculos usando tus funciones del Modelo
             $precios = $set->calcularPrecios();
             $set->pvp_natural = $precios['pvp_natural'];
             $set->pvp_color = $precios['pvp_color'];
 
-            // --- NUEVO: CÁLCULOS EN BOLÍVARES (VES) ---
             $set->pvp_natural_VES = round($precios['pvp_natural'] * $vesRate, 2);
             $set->pvp_color_VES   = round($precios['pvp_color'] * $vesRate, 2);
 
             $set->available_colors = $set->calcularColoresDisponibles();
 
-            // B. Transformar Componentes (Muebles del juego)
-            // Creamos un array limpio 'components' con solo lo que pide el front
             $set->components = $set->furnitures->map(function ($furniture) {
                 $prod = $furniture->product;
                 
-                // Gestionar imagen del componente
                 $imgUrl = null;
                 if ($prod && $prod->images->isNotEmpty()) {
                     $imgUrl = asset('storage/' . $prod->images->first()->url);
@@ -370,12 +374,10 @@ class ProductController extends Controller
                 ];
             });
 
-            // C. Limpieza del Set
             if ($set->setType) {
                 $set->setType->makeHidden(['created_at', 'updated_at']);
             }
 
-            // Ocultamos la relación original 'furnitures' (muy pesada) y dejamos solo 'components'
             $set->makeHidden([
                 'furnitures', 
                 'product_id', 

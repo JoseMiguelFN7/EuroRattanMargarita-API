@@ -7,10 +7,16 @@ use Illuminate\Database\Eloquent\Model;
 class MaterialType extends Model
 {
     protected $fillable = [
-        'name'
+        'name',
+        'material_category_id'
     ];
 
+    public function category()
+    {
+        return $this->belongsTo(MaterialCategory::class, 'material_category_id');
+    }
+
     public function materials(){
-        return $this->belongsToMany(Material::class, 'material_types_materials', 'material_type_id', 'material_id');
+        return $this->hasMany(Material::class);
     }
 }

@@ -39,11 +39,11 @@ class GenerateFurnituresPdf implements ShouldQueue
         ini_set('memory_limit', '512M');
         ini_set('max_execution_time', '300');
 
-        // IMPORTANTE: Cargamos materials y labors para que calcularPrecios() no haga miles de consultas
+        // IMPORTANTE: Cargamos materials con su nueva estructura para que calcularPrecios() no haga miles de consultas (N+1)
         $query = Furniture::with([
             'furnitureType', 
             'product.stocks',
-            'materials.materialTypes',
+            'materials.materialType.category', // <-- CAMBIO CRÍTICO: Nueva estructura singular y anidada
             'labors'
         ]);
 

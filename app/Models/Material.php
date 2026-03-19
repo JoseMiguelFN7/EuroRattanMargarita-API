@@ -9,6 +9,7 @@ class Material extends Model
     protected $fillable = [
         'price',
         'product_id',
+        'material_type_id',
         'unit_id',
         'min_stock',
         'max_stock'
@@ -24,8 +25,9 @@ class Material extends Model
         return $this->belongsTo(Product::class);
     }
 
-    public function materialTypes(){
-        return $this->belongsToMany(MaterialType::class, 'material_types_materials', 'material_id', 'material_type_id');
+    public function materialType()
+    {
+        return $this->belongsTo(MaterialType::class);
     }
 
     public function unit(){

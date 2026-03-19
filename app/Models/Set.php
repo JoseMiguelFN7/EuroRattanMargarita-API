@@ -16,7 +16,7 @@ class Set extends Model
 
     public function calcularPrecios()
     {
-        $totalInsumos = 0;
+        $totalEstructural = 0; // Cambiado de $totalInsumos
         $totalTapiceria = 0;
         $totalManoObra = 0;
 
@@ -31,12 +31,14 @@ class Set extends Model
                     foreach ($furniture->materials as $material) {
                         $costoTotalMaterial = $material->price * $material->pivot->quantity * $qtyInSet;
 
-                        // Clasificación
-                        if ($material->materialTypes->contains('name', 'Tapicería')) {
+                        // NUEVO: Clasificación usando la nueva estructura
+                        $categoriaName = $material->materialType->category->name ?? '';
+
+                        if ($categoriaName === 'Tapicería') {
                             $totalTapiceria += $costoTotalMaterial;
                         } 
-                        elseif ($material->materialTypes->contains('name', 'Insumo')) {
-                            $totalInsumos += $costoTotalMaterial;
+                        elseif ($categoriaName === 'Estructural') {
+                            $totalEstructural += $costoTotalMaterial;
                         }
                     }
                 }
@@ -44,7 +46,6 @@ class Set extends Model
                 // B. Mano de Obra
                 if ($furniture->relationLoaded('labors')) {
                     foreach ($furniture->labors as $labor) {
-                        // Nota: Usamos daily_pay según tu último snippet
                         $costoLabor = $labor->daily_pay * $labor->pivot->days * $qtyInSet;
                         $totalManoObra += $costoLabor;
                     }
@@ -57,8 +58,8 @@ class Set extends Model
         // 1. Base Tapicería (aplica % Fabricación)
         $baseTapiceria = $totalTapiceria * (1 + ($this->labor_fab_per / 100));
 
-        // 2. Base Estructura (Insumo + Mano de Obra)
-        $baseEstructura = $totalInsumos + $totalManoObra;
+        // 2. Base Estructura (Estructural + Mano de Obra)
+        $baseEstructura = $totalEstructural + $totalManoObra;
 
         // 3. Base Estructura con Pintura (aplica % Pintura)
         $baseEstructuraPintada = $baseEstructura * (1 + ($this->paint_per / 100));

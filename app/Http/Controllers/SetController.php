@@ -22,18 +22,17 @@ class SetController extends Controller
         $typeId  = $request->input('type_id');
 
         // 2. INICIAMOS EL QUERY BUILDER CON LA CARGA DE RELACIONES
-        // Necesitamos 'materials.materialTypes' para distinguir Insumo vs Tapicería
+        // CAMBIO CRÍTICO: 'materials.materialType.category' en lugar de 'materialTypes'
         $query = Set::with([
             'setType', 
             'product.images',
-            'furnitures.materials.materialTypes', 
+            'furnitures.materials.materialType.category', 
             'furnitures.labors',
             'furnitures.product.stocks'
         ]);
 
         // 3. APLICAMOS EL FILTRO DE BÚSQUEDA
         if ($search) {
-            // Filtramos a través de la relación product
             $query->whereHas('product', function ($q) use ($search) {
                 $q->where('name', 'LIKE', "%{$search}%")
                   ->orWhere('code', 'LIKE', "%{$search}%");
@@ -62,19 +61,16 @@ class SetController extends Controller
             // --- C. LIMPIEZA VISUAL ---
             $product = $set->product;
             if ($product) {
-                // Imagen para la tabla
                 if ($product->images->isNotEmpty()) {
                     $product->image = asset('storage/' . $product->images->first()->url);
                 } else {
                     $product->image = null;
                 }
-                // Ocultamos datos pesados del producto
                 $product->makeHidden(['created_at', 'updated_at', 'description', 'sell', 'images', 'stocks']);
             }
 
             if ($set->setType) $set->setType->makeHidden(['created_at', 'updated_at']);
 
-            // Ocultamos la lógica interna del Set
             $set->makeHidden(['furnitures', 'product_id', 'set_types_id', 'created_at', 'updated_at']);
 
             return $set;
@@ -113,13 +109,13 @@ class SetController extends Controller
         $sets = $query->with([
             'setType', 
             'product.images',
-            'furnitures.materials.materialTypes', 
+            'furnitures.materials.materialType.category', // <-- CAMBIO CRÍTICO: Nueva estructura anidada
             'furnitures.labors',
             'furnitures.product.stocks'
         ])->paginate($perPage);
 
         // 5. TRANSFORMACIÓN
-        $sets->through(function ($set) use ($vesRate) { // <-- Pasamos $vesRate aquí
+        $sets->through(function ($set) use ($vesRate) { 
             
             // --- A. LLAMADO AL MODELO PARA CÁLCULOS ---
             $precios = $set->calcularPrecios();
@@ -469,9 +465,6 @@ class SetController extends Controller
 
             $set->delete();
             if ($product) {
-                // Llamar al controlador de colores para eliminar los colores asociadas
-                app(ColorController::class)->detachAndDeleteOrphanColors($product->id);
-
                 // Llamar al controlador de imágenes para eliminar las imágenes asociadas
                 app(ProductImageController::class)->deleteImages($product->id);
                 

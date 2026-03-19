@@ -23,18 +23,20 @@ class RecipeGeneratorService
     public function suggestRecipe(string $userDescription, int $furnitureTypeId)
     {
         // ------------------------------------------------------------------
-        // 1. CONTEXTO DE MATERIALES (Optimizado con Pipes para ahorrar tokens)
+        // 1. CONTEXTO DE MATERIALES (Actualizado a la nueva estructura)
         // ------------------------------------------------------------------        
-        $materialsContext = Material::with(['product', 'unit', 'materialTypes'])
+        $materialsContext = Material::with(['product', 'unit', 'materialType.category'])
             ->get()
             ->map(function ($m) {
                 $name  = $m->product->name ?? 'N/A';
                 $unit  = $m->unit->name ?? 'u';
                 
-                // NUEVO: Traducimos el booleano a una instrucción clara para la IA
                 $allowsDecimals = ($m->unit->allows_decimals ?? false) ? 'PERMITE_DECIMALES' : 'SOLO_ENTEROS';
                 
-                $types = $m->materialTypes->pluck('name')->implode(',');
+                // NUEVO: Extraemos la Categoría y el Tipo para darle un contexto superior a la IA
+                $categoryName = $m->materialType->category->name ?? 'Sin Categoría';
+                $typeName = $m->materialType->name ?? 'Sin Tipo';
+                $types = "{$categoryName} > {$typeName}"; // Ej: "Estructural > Madera"
                 
                 $desc = $m->product->description ?? '';
                 $desc = str_replace(["\n", "\r", "|"], " ", $desc);
@@ -63,7 +65,7 @@ class RecipeGeneratorService
 Actúa como el Jefe de Producción de mi fábrica de muebles.
 Genera una "Hoja de Fabricación" técnica para el siguiente pedido: "{$userDescription}".
 
-INVENTARIO DISPONIBLE (Formato: ID|NOMBRE|UNIDAD|TIPO_CANTIDAD|TIPOS|DESCRIPCION):
+INVENTARIO DISPONIBLE (Formato: ID|NOMBRE|UNIDAD|TIPO_CANTIDAD|CATEGORIA_Y_TIPO|DESCRIPCION):
 {$materialsContext}
 
 ROLES DE MANO DE OBRA (Formato: ID|NOMBRE):
@@ -76,7 +78,8 @@ REGLAS:
 2. Define cantidades realistas para fabricar 1 unidad.
 3. El campo 'days' en labor puede ser decimal (ej: 0.5 para medio día).
 4. REGLA CRÍTICA DE CANTIDADES: Revisa la columna TIPO_CANTIDAD del material. Si dice 'SOLO_ENTEROS', la cantidad DEBE ser un número entero (ej: 1, 2, 10). Si dice 'PERMITE_DECIMALES', puedes usar números fraccionados si es necesario (ej: 0.5, 1.2).
-5. La respuesta debe ser ESTRICTAMENTE un objeto JSON.
+5. REGLA CRÍTICA DE TEXTO: ESTÁ ESTRICTAMENTE PROHIBIDO USAR MARKDOWN. NO uses asteriscos (* o **), NO uses numerales (#), NO resaltes palabras. Escribe TODO en texto plano puro y aburrido.
+6. La respuesta debe ser ESTRICTAMENTE un objeto JSON.
 
 FORMATO JSON:
 {
@@ -96,7 +99,7 @@ EOT;
         // ------------------------------------------------------------------
         try {
             $response = Http::withoutVerifying()
-                ->timeout(60)         // 60 segundos de espera total
+                ->timeout(60)        // 60 segundos de espera total
                 ->connectTimeout(30)  // 30 segundos para conectar
                 ->withHeaders(['Content-Type' => 'application/json'])
                 ->post("{$this->baseUrl}/{$this->model}:generateContent?key={$this->apiKey}", [
@@ -119,8 +122,6 @@ EOT;
             Log::error("RecipeGenerator Fail: " . $e->getMessage());
             throw $e;
         }
-
-        return $prompt;
     }
 
     private function getReferences(int $furnitureTypeId)

@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Material;
 use App\Models\MaterialType;
 use App\Models\Product;
+use App\Models\Currency;
 use Exception;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -18,43 +19,42 @@ class MaterialController extends Controller
     public function index(Request $request)
     {
         $perPage = $request->input('per_page', 8);
-        $search  = $request->input('search'); // 1. Capturamos el término de búsqueda
+        $search  = $request->input('search');
         $typeIds = $request->input('type_id');
+        $categoryId = $request->input('category_id');
 
-        // 2. Iniciamos el Query Builder con la Carga Ansiosa
         $query = Material::with([
-            'materialTypes', 
+            'materialType.category', 
             'unit', 
             'product.images', 
             'product.stocks',
         ]);
 
-        // 3. Aplicamos el filtro de búsqueda si el frontend envió el parámetro
         if ($search) {
-            // Buscamos dentro de la relación 'product'
             $query->whereHas('product', function ($q) use ($search) {
                 $q->where('name', 'LIKE', "%{$search}%")
                   ->orWhere('code', 'LIKE', "%{$search}%");
             });
         }
 
+        // NUEVA LÓGICA DE FILTRADO CONDICIONAL
         if (!empty($typeIds)) {
-            // Nos aseguramos de que siempre sea un array (por si el frontend envía uno solo por error)
+            // Si hay un Tipo específico, la búsqueda es directa y rápida
             $typeIdsArray = is_array($typeIds) ? $typeIds : [$typeIds];
+            $query->whereIn('material_type_id', $typeIdsArray);
 
-            $query->whereHas('materialTypes', function ($q) use ($typeIdsArray) {
-                $q->whereIn('material_types.id', $typeIdsArray); 
+        } elseif (!empty($categoryId)) {
+            // Si NO hay Tipo, pero SÍ hay Categoría, buscamos a través de la relación
+            $query->whereHas('materialType', function ($q) use ($categoryId) {
+                $q->where('material_category_id', $categoryId);
             });
         }
 
-        // 4. Ejecutamos la consulta paginada
         $materials = $query->paginate($perPage);
 
-        // 5. LIMPIEZA DE DATOS (Se mantiene exactamente igual)
         $materials->through(function ($material) {
-            
             // --- Nivel Material ---
-            $material->makeHidden(['created_at', 'updated_at', 'product_id', 'unit_id']);
+            $material->makeHidden(['created_at', 'updated_at', 'product_id', 'unit_id', 'material_type_id']);
 
             // --- Nivel Producto ---
             if ($material->product) {
@@ -73,8 +73,12 @@ class MaterialController extends Controller
             }
 
             // --- Nivel Tipos y Unidades ---
-            if ($material->materialTypes) {
-                $material->materialTypes->makeHidden(['pivot', 'created_at', 'updated_at']);
+            if ($material->materialType) {
+                $material->materialType->makeHidden(['created_at', 'updated_at', 'material_category_id']);
+                
+                if ($material->materialType->category) {
+                    $material->materialType->category->makeHidden(['created_at', 'updated_at']);
+                }
             }
             if ($material->unit) {
                 $material->unit->makeHidden(['created_at', 'updated_at', 'id']);
@@ -89,10 +93,11 @@ class MaterialController extends Controller
     public function indexSell(Request $request)
     {
         $perPage = $request->input('per_page', 8);
-        $materialTypeIds = $request->input('material_type_id');
+        $typeIds = $request->input('type_ids');          // <-- CAMBIO: Ahora esperamos un arreglo o CSV ('type_ids' en plural)
+        $categoryId = $request->input('category_id');  
 
-        // --- NUEVO: OBTENER LA TASA VES ACTUAL ---
-        $vesCurrency = \App\Models\Currency::where('code', 'VES')->first();
+        // --- OBTENER LA TASA VES ACTUAL ---
+        $vesCurrency = Currency::where('code', 'VES')->first();
         $vesRate = $vesCurrency ? $vesCurrency->current_rate : 0;
         // -----------------------------------------
 
@@ -102,23 +107,24 @@ class MaterialController extends Controller
                 $q->where('sell', true);
             });
 
-        // 2. APLICAMOS EL FILTRO DE TIPOS DE MATERIAL (Múltiples IDs)
-        if (!empty($materialTypeIds)) {
-            // Verificamos si es un arreglo. Si es un string separado por comas, lo convertimos a arreglo.
-            $typesArray = is_array($materialTypeIds) 
-                ? $materialTypeIds 
-                : explode(',', $materialTypeIds);
+        // 2. NUEVA LÓGICA DE FILTROS EN CASCADA (Soporta múltiples tipos)
+        if (!empty($typeIds)) {
+            // Convertimos la entrada a un arreglo seguro
+            $typesArray = is_array($typeIds) ? $typeIds : explode(',', $typeIds);
             
-            // Filtramos los materiales que tengan AL MENOS UNO de los tipos enviados
-            $query->whereHas('materialTypes', function ($q) use ($typesArray) {
-                // Especificamos la tabla material_types.id para evitar ambigüedades en la consulta SQL
-                $q->whereIn('material_types.id', $typesArray);
+            // Filtramos directo en la tabla con un whereIn, que es rapidísimo
+            $query->whereIn('material_type_id', $typesArray);
+
+        } elseif (!empty($categoryId)) {
+            // Si NO enviaron tipos específicos, pero SÍ enviaron la categoría, traemos todos los de esa categoría
+            $query->whereHas('materialType', function ($q) use ($categoryId) {
+                $q->where('material_category_id', $categoryId);
             });
         }
 
         // 3. CARGA ANSIOSA Y PAGINACIÓN
         $materials = $query->with([
-                'materialTypes', 
+                'materialType.category', 
                 'unit', 
                 'product.images', 
                 'product.stocks'
@@ -126,15 +132,13 @@ class MaterialController extends Controller
             ->paginate($perPage);
 
         // 4. LIMPIEZA DE DATOS (Transformación)
-        $materials->through(function ($material) use ($vesRate) { // <-- Pasamos $vesRate aquí
+        $materials->through(function ($material) use ($vesRate) { 
             
-            // --- NUEVO: CÁLCULO EN BOLÍVARES ---
-            // El material ya tiene su propio campo 'price', solo multiplicamos
+            // --- CÁLCULO EN BOLÍVARES ---
             $material->price_VES = round($material->price * $vesRate, 2);
 
-
             // --- Nivel Material ---
-            $material->makeHidden(['created_at', 'updated_at', 'product_id', 'unit_id']);
+            $material->makeHidden(['created_at', 'updated_at', 'product_id', 'unit_id', 'material_type_id']);
 
             // --- Nivel Producto ---
             if ($material->product) {
@@ -157,9 +161,13 @@ class MaterialController extends Controller
                 $prod->makeHidden(['created_at', 'updated_at', 'description']);
             }
 
-            // --- Nivel Tipos y Unidades ---
-            if ($material->materialTypes) {
-                $material->materialTypes->makeHidden(['pivot', 'created_at', 'updated_at']);
+            // --- Nivel Tipos y Categorías ---
+            if ($material->materialType) {
+                $material->materialType->makeHidden(['created_at', 'updated_at', 'material_category_id']);
+                
+                if ($material->materialType->category) {
+                    $material->materialType->category->makeHidden(['created_at', 'updated_at']);
+                }
             }
             
             if ($material->unit) {
@@ -225,7 +233,7 @@ class MaterialController extends Controller
         // Usamos 'whereHas' para buscar el Material cuyo Producto tenga ese código.
         $material = Material::with([
             'unit', 
-            'materialTypes', 
+            'materialType.category',
             'product.images', 
             'product.colors'
         ])
@@ -240,15 +248,21 @@ class MaterialController extends Controller
 
         // 2. LIMPIEZA NIVEL MATERIAL
         // Ocultamos las FKs y fechas
-        $material->makeHidden(['created_at', 'updated_at', 'product_id', 'unit_id']);
+        $material->makeHidden(['created_at', 'updated_at', 'product_id', 'unit_id', 'material_type_id']);
 
         // 3. LIMPIEZA DE RELACIONES DIRECTAS
         if ($material->unit) {
             $material->unit->makeHidden(['created_at', 'updated_at']);
         }
 
-        if ($material->materialTypes) {
-            $material->materialTypes->makeHidden(['pivot', 'created_at', 'updated_at']);
+        if ($material->materialType) {
+            // Limpiamos la subcategoría
+            $material->materialType->makeHidden(['created_at', 'updated_at', 'material_category_id']);
+            
+            // Limpiamos la categoría padre si vino en la carga
+            if ($material->materialType->category) {
+                $material->materialType->category->makeHidden(['created_at', 'updated_at']);
+            }
         }
 
         // 4. LIMPIEZA DEL PRODUCTO PADRE
@@ -416,20 +430,21 @@ class MaterialController extends Controller
     }
 
     //Obtener todos los materiales de un tipo de material
-    public function indexByMaterialType($name)
+    public function indexByCategoryName($name)
     {
-        // 1. VERIFICAR EXISTENCIA DEL TIPO (Opcional, pero buena práctica)
-        if (!MaterialType::where('name', $name)->exists()) {
-             return response()->json(['message' => 'No se encontró el tipo de material'], 404);
+        // 1. BUSCAR LA CATEGORÍA
+        // Usamos first() para traernos el objeto completo y usar su relación
+        $category = \App\Models\MaterialCategory::where('name', $name)->first();
+
+        if (!$category) {
+             return response()->json(['message' => 'No se encontró la categoría de material'], 404);
         }
 
-        // 2. QUERY OPTIMIZADA
-        // Usamos whereHas para filtrar materiales por el nombre de su tipo relacionado
-        $materials = Material::whereHas('materialTypes', function ($query) use ($name) {
-                $query->where('name', $name);
-            })
+        // 2. QUERY OPTIMIZADA (Usando tu hasManyThrough)
+        // A partir de la categoría, llamamos a ->materials()
+        $materials = $category->materials()
             ->with([
-                'materialTypes',
+                'materialType.category', // Actualizado a singular y anidado
                 'unit',
                 'product.images',
                 'product.colors',
@@ -441,26 +456,30 @@ class MaterialController extends Controller
         $materials->each(function ($material) {
             
             // --- Nivel Material ---
-            // Ocultamos fechas, FKs y el 'pivot' que conecta con la búsqueda
-            $material->makeHidden(['created_at', 'updated_at', 'product_id', 'unit_id', 'pivot']);
+            // Añadimos 'material_type_id' para ocultarlo y quitamos 'pivot' que ya no existe
+            $material->makeHidden(['created_at', 'updated_at', 'product_id', 'unit_id', 'material_type_id']);
 
             // --- Nivel Relaciones Directas ---
             if ($material->unit) {
-                $material->unit->makeHidden(['created_at', 'updated_at']);
+                $material->unit->makeHidden(['created_at', 'updated_at', 'id']); // id oculto opcionalmente para más limpieza
             }
 
-            if ($material->materialTypes) {
-                $material->materialTypes->makeHidden(['pivot', 'created_at', 'updated_at']);
+            // Actualizado para manejar el objeto singular 'materialType'
+            if ($material->materialType) {
+                $material->materialType->makeHidden(['created_at', 'updated_at', 'material_category_id']);
+                
+                if ($material->materialType->category) {
+                    $material->materialType->category->makeHidden(['created_at', 'updated_at']);
+                }
             }
 
             // --- Nivel Producto ---
             if ($material->product) {
                 $prod = $material->product;
 
-                // Limpieza del objeto producto
                 $prod->makeHidden(['created_at', 'updated_at', 'sell', 'description', 'id']);
 
-                // Procesar Imágenes (URLs absolutas + Limpieza)
+                // Procesar Imágenes
                 $prod->images->each(function ($image) {
                     $image->url = asset('storage/' . $image->url);
                     $image->makeHidden(['created_at', 'updated_at', 'product_id']);
@@ -487,8 +506,7 @@ class MaterialController extends Controller
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:255|unique:products',
             'description' => 'required|string|max:500',
-            'material_type_ids' => 'required|array',
-            'material_type_ids.*' => 'integer|exists:material_types,id',
+            'material_type_id' => 'required|integer|exists:material_types,id',
             'price' => 'required|numeric|min:0',
             'discount' => 'required|numeric|min:0|max:100',
             'unit_id' => 'required|numeric|exists:units,id',
@@ -530,6 +548,7 @@ class MaterialController extends Controller
             $material = Material::create([
                 'product_id' => $product->id,
                 'unit_id' => $request->unit_id,
+                'material_type_id' => $request->material_type_id,
                 'price' => $request->price,
                 'min_stock' => $request->min_stock,
                 'max_stock' => $request-> max_stock
@@ -540,9 +559,6 @@ class MaterialController extends Controller
                 $colorIds = $request->input('colors');
                 $product->colors()->sync($colorIds);
             }
-
-            // Asociar los tipos de materiales con el material creado
-            $material->materialTypes()->sync($request->material_type_ids);
 
             // Confirmar la transacción
             DB::commit();
@@ -578,8 +594,7 @@ class MaterialController extends Controller
             'code' => 'sometimes|required|string|max:255|unique:products,code,' . $product->id,
             'description' => 'sometimes|required|string|max:500',
             'sell' => 'sometimes|required|boolean',
-            'material_type_ids' => 'sometimes|required|array',
-            'material_type_ids.*' => 'integer|exists:material_types,id',
+            'material_type_id' => 'sometimes|required|integer|exists:material_types,id',
             'price' => 'sometimes|required|numeric|min:0',
             'discount' => 'sometimes|required|numeric|min:0|max:100',
             'unit_id' => 'sometimes|required|numeric|exists:units,id',
@@ -610,7 +625,7 @@ class MaterialController extends Controller
             
             // Actualizar datos del Material
             $material->fill($request->only([
-                'price', 'unit_id', 'min_stock', 'max_stock'
+                'price', 'unit_id', 'min_stock', 'max_stock', 'material_type_id'
             ]));
 
             // 2. GESTIÓN DE IMÁGENES
@@ -652,12 +667,6 @@ class MaterialController extends Controller
             }
         }
 
-            // 3. TIPOS DE MATERIAL
-            if ($request->has('material_type_ids')) {
-                // Sync maneja automáticamente las relaciones (agrega nuevas y borra viejas)
-                $material->materialTypes()->sync($request->material_type_ids);
-            }
-
             // 4. GESTIÓN DE COLORES
             if ($request->has('colors')) {
                 $colorIds = $request->input('colors');
@@ -670,7 +679,7 @@ class MaterialController extends Controller
             DB::commit();
 
             // 5. RESPUESTA ACTUALIZADA
-            $material->load(['product.colors', 'product.images', 'materialTypes', 'unit']);
+            $material->load(['product.colors', 'product.images', 'materialType.category', 'unit']);
 
         } catch (Exception $e) {
             DB::rollback();
@@ -700,9 +709,6 @@ class MaterialController extends Controller
             // Eliminar las imágenes asociadas al producto
 
             if ($product) {
-                // Llamar al controlador de colores para eliminar los colores asociadas
-                app(ColorController::class)->detachAndDeleteOrphanColors($product->id);
-
                 // Llamar al controlador de imágenes para eliminar las imágenes asociadas
                 app(ProductImageController::class)->deleteImages($product->id);
 
@@ -730,16 +736,16 @@ class MaterialController extends Controller
     public function exportPdf(Request $request)
     {
         $search = $request->input('search');
-        $typeIds = $request->input('type_id');
+        $typeId = $request->input('type_id');
+        $categoryId = $request->input('category_id'); // NUEVO: Capturamos la categoría
         $userId = auth('sanctum')->id();
 
-        // Mandamos el trabajo a la cola (Redis/Database)
-        GenerateMaterialsPdf::dispatch($search, $typeIds, $userId);
+        // NUEVO: Pasamos el categoryId al Job
+        GenerateMaterialsPdf::dispatch($search, $typeId, $categoryId, $userId);
 
-        // Le respondemos al frontend en 10ms
         return response()->json([
             'message' => 'Generando reporte. Te notificaremos cuando esté listo.',
             'status' => 'processing'
-        ], 202); // 202 significa "Accepted" (Aceptado para procesamiento)
+        ], 202); 
     }
 }

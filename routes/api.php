@@ -30,6 +30,8 @@ Route::get('/product/search/', [\App\Http\Controllers\ProductController::class, 
 Route::get('/product/stock/{id}', [\App\Http\Controllers\ProductController::class, 'showStock']); // Obtener un stock específico
 
 // Rutas para el CRUD de tipos de materiales
+Route::get('/materialCategories', [\App\Http\Controllers\MaterialCategoryController::class, 'index']); // Obtener todas las categorías de materiales con sus tipos anidados
+Route::get('/materialCategories/only', [\App\Http\Controllers\MaterialCategoryController::class, 'getOnlyCategories']); // Obtener solo las categorías de materiales sin tipos anidados (para filtros en frontend)
 Route::get('/materialTypes', [\App\Http\Controllers\MaterialTypeController::class, 'index']); // Obtener todos los tipos de material
 Route::get('/materialType/{id}', [\App\Http\Controllers\MaterialTypeController::class, 'show']); // Obtener un tipo de material específico
 
@@ -39,7 +41,7 @@ Route::get('/materials/sell', [\App\Http\Controllers\MaterialController::class, 
 Route::get('/material/cod/{cod}', [\App\Http\Controllers\MaterialController::class, 'showCod']); // Obtener un material específico
 Route::get('/material/{id}', [\App\Http\Controllers\MaterialController::class, 'show']); // Obtener un material específico
 Route::get('/materials/{quantity}', [\App\Http\Controllers\MaterialController::class, 'rand']); // Obtener una cantidad de materiales en orden aleatorio
-Route::get('/materialsByType/name/{name}', [\App\Http\Controllers\MaterialController::class, 'indexByMaterialType']); // Obtener materiales segun tipo
+Route::get('/materialsByCategory/name/{name}', [\App\Http\Controllers\MaterialController::class, 'indexByCategoryName']); // Obtener materiales segun categoria por nombre (Estructural o Tapicería)
 Route::get('/materialsByType/{quantity}', [\App\Http\Controllers\MaterialController::class, 'randByMaterialType']); // Obtener una cantidad de materiales en orden aleatorio segun tipos
 
 // Rutas para el CRUD de unidades
@@ -118,6 +120,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/material/{id}', [\App\Http\Controllers\MaterialController::class, 'destroy']); //Eliminar un material
 
     //Rutas para el CRUD de tipos de materiales
+    Route::get('/materialTypes/paginated', [\App\Http\Controllers\MaterialTypeController::class, 'indexByCategory']); // Obtener tipos de material por categoría
     Route::post('/materialType', [\App\Http\Controllers\MaterialTypeController::class, 'store']); //Crear un tipo de material
     Route::post('/materialType/{id}', [\App\Http\Controllers\MaterialTypeController::class, 'update']); //Actualizar un tipo de material
     Route::delete('/materialType/{id}', [\App\Http\Controllers\MaterialTypeController::class, 'destroy']); //Eliminar un tipo de material

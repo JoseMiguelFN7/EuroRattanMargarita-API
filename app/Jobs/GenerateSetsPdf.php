@@ -41,7 +41,7 @@ class GenerateSetsPdf implements ShouldQueue
 
         $query = Set::with([
             'setType',
-            'furnitures.materials.materialTypes', 
+            'furnitures.materials.materialType.category', 
             'furnitures.labors',
             'furnitures.product.stocks'
         ]);

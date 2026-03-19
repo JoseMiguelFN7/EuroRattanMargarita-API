@@ -47,18 +47,25 @@ class Furniture extends Model
 
     public function calcularPrecios()
     {
-        $insumosCost = $this->materials->filter(function ($material) {
-            return $material->materialTypes->contains('name', 'Insumo');
+        // 1. Calculamos el costo Estructural
+        $estructuralCost = $this->materials->filter(function ($material) {
+            return $material->materialType 
+                && $material->materialType->category 
+                && $material->materialType->category->name === 'Estructural';
         })->sum(function ($material) {
             return $material->pivot->quantity * $material->price;
         });
 
+        // 2. Calculamos el costo de Tapicería
         $tapiceriaCost = $this->materials->filter(function ($material) {
-            return $material->materialTypes->contains('name', 'Tapicería');
+            return $material->materialType 
+                && $material->materialType->category 
+                && $material->materialType->category->name === 'Tapicería';
         })->sum(function ($material) {
             return $material->pivot->quantity * $material->price;
         });
 
+        // 3. Costo de Mano de Obra
         $manoObraCost = $this->labors->sum(function ($labor) {
             return $labor->pivot->days * $labor->daily_pay;
         });
@@ -68,24 +75,27 @@ class Furniture extends Model
         $laborFabPer = $this->labor_fab_per ?? 0;
         $discount = $this->product->discount ?? 0;
 
+        // 4. Cálculo de PVP Natural
         $pvpNatural = (
-            ($insumosCost + $manoObraCost + $tapiceriaCost * (1 + $laborFabPer / 100))
+            ($estructuralCost + $manoObraCost + $tapiceriaCost * (1 + $laborFabPer / 100))
             * (1 + $profitPer / 100)
         ) * (1 - $discount / 100);
 
+        // 5. Cálculo de PVP Color
         $pvpColor = (
             (
-                ($insumosCost + $manoObraCost) * (1 + $paintPer / 100)
+                ($estructuralCost + $manoObraCost) * (1 + $paintPer / 100)
                 + ($tapiceriaCost * (1 + $laborFabPer / 100))
             ) * (1 + $profitPer / 100)
         ) * (1 - $discount / 100);
 
+        // 6. Retornamos con las nuevas llaves para el frontend
         return [
-            'insumos' => round($insumosCost, 2),
-            'tapiceria' => round($tapiceriaCost, 2),
-            'mano_obra' => round($manoObraCost, 2),
+            'estructural' => round($estructuralCost, 2),
+            'tapiceria'   => round($tapiceriaCost, 2),
+            'mano_obra'   => round($manoObraCost, 2),
             'pvp_natural' => round($pvpNatural, 2),
-            'pvp_color' => round($pvpColor, 2),
+            'pvp_color'   => round($pvpColor, 2),
         ];
     }
 

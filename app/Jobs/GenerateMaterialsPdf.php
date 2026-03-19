@@ -18,13 +18,15 @@ class GenerateMaterialsPdf implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     protected $search;
+    protected $typeId;
+    protected $categoryId;
     protected $userId;
-    protected $typeIds;
 
-    public function __construct($search, $typeIds, $userId)
+    public function __construct($search, $typeId, $categoryId, $userId)
     {
         $this->search = $search;
-        $this->typeIds = $typeIds;
+        $this->typeId = $typeId;
+        $this->categoryId = $categoryId;
         $this->userId = $userId;
     }
 
@@ -35,10 +37,10 @@ class GenerateMaterialsPdf implements ShouldQueue
 
         $query = Material::with([
             'product:id,name,code,discount',
-            'materialTypes', 
+            'materialType.category', 
             'unit', 
             'product.stocks'
-        ])->select('id', 'product_id', 'price');
+        ])->select('id', 'product_id', 'material_type_id', 'price');
 
         if ($this->search) {
             $query->whereHas('product', function ($q) {
@@ -47,11 +49,11 @@ class GenerateMaterialsPdf implements ShouldQueue
             });
         }
 
-        if (!empty($this->typeIds)) {
-            $typeIdsArray = is_array($this->typeIds) ? $this->typeIds : [$this->typeIds];
-            
-            $query->whereHas('materialTypes', function ($q) use ($typeIdsArray) {
-                $q->whereIn('material_types.id', $typeIdsArray);
+        if (!empty($this->typeId)) {
+            $query->where('material_type_id', $this->typeId);
+        } elseif (!empty($this->categoryId)) {
+            $query->whereHas('materialType', function ($q) {
+                $q->where('material_category_id', $this->categoryId);
             });
         }
 
@@ -72,6 +74,6 @@ class GenerateMaterialsPdf implements ShouldQueue
         Storage::disk('public')->put($filePath, $pdf->output());
 
         $fileUrl = asset('storage/' . $filePath);
-        event(new ReportGenerated($this->userId, $fileUrl, 'Reporte de Materiales')); // Descomentar cuando uses Reverb
+        event(new ReportGenerated($this->userId, $fileUrl, 'Reporte de Materiales'));
     }
 }
