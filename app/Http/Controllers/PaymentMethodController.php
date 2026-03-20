@@ -22,21 +22,38 @@ class PaymentMethodController extends Controller
 
     public function indexPaginated(Request $request)
     {
-        // 1. Definimos cuántos registros por página (por defecto 10 si no se envía)
+        // 1. Configuración de parámetros
         $perPage = $request->input('per_page', 10);
+        $name = $request->input('search');
+        $currencyCode = $request->input('currency_code');
 
-        // 2. Cargamos las relaciones y paginamos
+        // 2. Construcción de la consulta con filtros
         $paymentMethods = PaymentMethod::with('currency')
+            ->when($name, function ($query, $name) {
+                // Filtro por nombre del método (ej: "Pago Móvil")
+                $query->where('name', 'like', "%{$name}%");
+            })
+            ->when($currencyCode, function ($query, $currencyCode) {
+                // Filtro por código de la moneda (ej: "VES" o "USD")
+                // Usamos whereHas para filtrar en la tabla relacionada 'currencies'
+                $query->whereHas('currency', function ($q) use ($currencyCode) {
+                    $q->where('code', $currencyCode);
+                });
+            })
+            ->when($request->has('is_active') && $request->input('is_active') !== '', function ($query) use ($request) {
+                // Filtro booleano seguro
+                $isActive = filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN);
+                $query->where('is_active', $isActive);
+            })
             ->paginate($perPage);
 
-        // 3. Transformamos la data usando through()
+        // 3. Transformación de la data (Ruta de imagen)
         $paymentMethods->through(function ($method) {
-            // Si existe imagen, concatenamos el dominio completo
             $method->image = $method->image ? asset('storage/' . $method->image) : null;
             return $method;
         });
 
-        // 4. Retornamos el JSON con la metadata de paginación
+        // 4. Retorno de JSON
         return response()->json($paymentMethods);
     }
 
