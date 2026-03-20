@@ -58,7 +58,8 @@ Route::get('/furnitures/{quantity}', [\App\Http\Controllers\FurnitureController:
 
 
 // Rutas para el CRUD de tipos de muebles
-Route::get('/furnitureTypes', [\App\Http\Controllers\FurnitureTypeController::class, 'index']); // Obtener todos los tipos de material
+Route::get('/furnitureTypes/all', [\App\Http\Controllers\FurnitureTypeController::class, 'indexAll']); // Obtener todos los tipos de mueble
+Route::get('/furnitureTypes', [\App\Http\Controllers\FurnitureTypeController::class, 'index']); // Obtener todos los tipos de mueble con paginacion y busqueda
 Route::get('/furnitureType/name/{name}', [\App\Http\Controllers\FurnitureTypeController::class, 'showByName']); // Obtener un tipo de mueble específico por nombre
 Route::get('/furnitureType/{id}', [\App\Http\Controllers\FurnitureTypeController::class, 'show']); // Obtener un tipo de mueble específico por id
 
@@ -140,7 +141,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/furnitureType/{id}', [\App\Http\Controllers\FurnitureTypeController::class, 'destroy']); //Eliminar un tipo de mueble
 
     // Rutas para el CRUD de MO
-    Route::get('/labors', [\App\Http\Controllers\LaborController::class, 'index']); // Obtener todas las MO
+    Route::get('/labors', [\App\Http\Controllers\LaborController::class, 'index']); // Obtener todas las MO con paginación y busqueda
+    Route::get('/labors/all', [\App\Http\Controllers\LaborController::class, 'indexAll']); // Obtener todas las MO sin paginación
     Route::get('/labor/name/{name}', [\App\Http\Controllers\LaborController::class, 'showByName']); // Obtener MO específica por nombre
     Route::get('/labor/{id}', [\App\Http\Controllers\LaborController::class, 'show']); // Obtener MO específica
     Route::post('/labor', [\App\Http\Controllers\LaborController::class, 'store']); //Crear una MO

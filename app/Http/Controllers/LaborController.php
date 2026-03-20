@@ -9,8 +9,26 @@ use Illuminate\Support\Facades\Validator;
 class LaborController extends Controller
 {
     //Obtener todas las MO
-    public function index(){
+    public function indexAll(){
         $labors = Labor::all();
+        return response()->json($labors);
+    }
+
+    public function index(Request $request)
+    {
+        // 1. Configurar la paginación (10 por defecto)
+        $perPage = $request->input('per_page', 10);
+        
+        // 2. Capturar el término de búsqueda
+        $search = $request->input('search');
+
+        // 3. Consulta con filtro dinámico por nombre y paginación
+        $labors = Labor::query()
+            ->when($search, function ($query, $search) {
+                $query->where('name', 'like', "%{$search}%");
+            })
+            ->paginate($perPage);
+
         return response()->json($labors);
     }
 

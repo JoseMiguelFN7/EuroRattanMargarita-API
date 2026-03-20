@@ -9,8 +9,26 @@ use Illuminate\Support\Facades\Validator;
 class FurnitureTypeController extends Controller
 {
     //Obtener todos los tipos de muebles
-    public function index(){
+    public function indexAll(){
         $furnitureTypes = FurnitureType::all();
+        return response()->json($furnitureTypes);
+    }
+
+    public function index(Request $request)
+    {
+        // 1. Configuramos la paginación (10 por defecto)
+        $perPage = $request->input('per_page', 10);
+        
+        // 2. Capturamos el término de búsqueda
+        $search = $request->input('search');
+
+        // 3. Consulta con filtro dinámico por nombre y paginación
+        $furnitureTypes = FurnitureType::query()
+            ->when($search, function ($query, $search) {
+                $query->where('name', 'like', "%{$search}%");
+            })
+            ->paginate($perPage);
+
         return response()->json($furnitureTypes);
     }
 
