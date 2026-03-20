@@ -9,8 +9,27 @@ use Illuminate\Support\Facades\Validator;
 class UnitController extends Controller
 {
     //Obtener todas las unidades
-    public function index(){
+    public function indexAll(){
         $units = Unit::all();
+        return response()->json($units);
+    }
+
+    public function index(Request $request)
+    {
+        // 1. Configuramos la paginación (10 por defecto, igual que en el resto)
+        $perPage = $request->input('per_page', 10);
+        
+        // 2. Capturamos el término de búsqueda
+        $search = $request->input('search'); 
+
+        // 3. Consulta con filtro dinámico y paginación
+        $units = Unit::query()
+            ->when($search, function ($query, $search) {
+                // Filtramos por el nombre de la unidad (ej: "Metros", "Kg", "Piezas")
+                $query->where('name', 'like', "%{$search}%");
+            })
+            ->paginate($perPage);
+
         return response()->json($units);
     }
 

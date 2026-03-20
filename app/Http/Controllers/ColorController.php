@@ -8,9 +8,34 @@ use Illuminate\Http\Request;
 class ColorController extends Controller
 {
     //Obtener todos los colores
-    public function index(){
+    public function indexAll(){
         $colors = Color::all();
         $colors->makeHidden(['created_at', 'updated_at']);
+        return response()->json($colors);
+    }
+
+    public function index(Request $request)
+    {
+        $perPage = $request->input('per_page', 10);
+        $search = $request->input('search');
+
+        // 1. Consulta dinámica y paginación
+        $colors = Color::query()
+            ->when($search, function ($query, $search) {
+                // Agrupamos la búsqueda para evitar conflictos de lógica SQL
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                      ->orWhere('hex', 'like', "%{$search}%");
+                });
+            })
+            ->paginate($perPage);
+
+        // 2. Limpieza de datos usando through() para el paginador
+        $colors->through(function ($color) {
+            $color->makeHidden(['created_at', 'updated_at']);
+            return $color;
+        });
+
         return response()->json($colors);
     }
 

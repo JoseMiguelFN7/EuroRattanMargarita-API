@@ -45,7 +45,8 @@ Route::get('/materialsByCategory/name/{name}', [\App\Http\Controllers\MaterialCo
 Route::get('/materialsByType/{quantity}', [\App\Http\Controllers\MaterialController::class, 'randByMaterialType']); // Obtener una cantidad de materiales en orden aleatorio segun tipos
 
 // Rutas para el CRUD de unidades
-Route::get('/units', [\App\Http\Controllers\UnitController::class, 'index']); // Obtener todas las unidades
+Route::get('/units/all', [\App\Http\Controllers\UnitController::class, 'indexAll']); // Obtener todas las unidades sin paginacion
+Route::get('/units', [\App\Http\Controllers\UnitController::class, 'index']); // Obtener todas las unidades con paginacion y busqueda
 Route::get('/unit/{id}', [\App\Http\Controllers\UnitController::class, 'show']); // Obtener una unidad específica
 
 // Rutas para el CRUD de muebles
@@ -159,7 +160,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/setType/{id}', [\App\Http\Controllers\SetTypeController::class, 'destroy']); //Eliminar un tipo de juego
 
     // Rutas para el CRUD de colores
-    Route::get('/colors', [\App\Http\Controllers\ColorController::class, 'index']); // Obtener todos los colores
+    Route::get('/colors/all', [\App\Http\Controllers\ColorController::class, 'indexAll']); // Obtener todos los colores
+    Route::get('/colors', [\App\Http\Controllers\ColorController::class, 'index']); // Obtener todos los colores con paginacion y busqueda
     Route::post('/color', [\App\Http\Controllers\ColorController::class, 'store']); //Crear un color
     Route::post('/color/{id}', [\App\Http\Controllers\ColorController::class, 'update']); //Actualizar un color
     Route::delete('/color/{id}', [\App\Http\Controllers\ColorController::class, 'delete']); //Eliminar un color
