@@ -11,11 +11,17 @@ class RoleController extends Controller
     //Obtener todos los usuarios
     public function index(Request $request)
     {
-        // 1. Configuración (10 por defecto)
+        // 1. Configuración de parámetros
         $perPage = $request->input('per_page', 10);
+        $search = $request->input('search'); // <-- Capturamos el término de búsqueda
 
-        // 2. Consulta Paginada (Directa, sin cargar relaciones pesadas)
-        $roles = Role::paginate($perPage);
+        // 2. Consulta con filtro dinámico y paginación
+        $roles = Role::query()
+            ->when($search, function ($query, $search) {
+                // Buscamos coincidencias parciales en el nombre (ignorando mayúsculas/minúsculas)
+                $query->where('name', 'like', "%{$search}%");
+            })
+            ->paginate($perPage);
 
         return response()->json($roles);
     }
