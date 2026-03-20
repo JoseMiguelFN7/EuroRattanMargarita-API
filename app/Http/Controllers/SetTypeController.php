@@ -9,9 +9,27 @@ use Illuminate\Support\Facades\Validator;
 class SetTypeController extends Controller
 {
     //Obtener todos los tipos de juegos
-    public function index(){
+    public function indexAll(){
         $setType = SetType::all();
         return response()->json($setType);
+    }
+
+    public function index(Request $request)
+    {
+        // 1. Configurar la paginación (10 por defecto)
+        $perPage = $request->input('per_page', 10);
+        
+        // 2. Capturar el término de búsqueda
+        $search = $request->input('search');
+
+        // 3. Consulta con filtro dinámico por nombre y paginación
+        $setTypes = SetType::query()
+            ->when($search, function ($query, $search) {
+                $query->where('name', 'like', "%{$search}%");
+            })
+            ->paginate($perPage);
+
+        return response()->json($setTypes);
     }
 
     //Obtener tipo de juego por ID

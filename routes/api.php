@@ -70,7 +70,8 @@ Route::get('/set/{id}', [\App\Http\Controllers\SetController::class, 'show']); /
 Route::get('/sets/{quantity}', [\App\Http\Controllers\SetController::class, 'rand']); // Obtener una cantidad de juegos en orden aleatorio
 
 // Rutas para el CRUD de tipos de juegos
-Route::get('/setTypes', [\App\Http\Controllers\SetTypeController::class, 'index']); // Obtener todos los tipos de juego
+Route::get('/setTypes/all', [\App\Http\Controllers\SetTypeController::class, 'indexAll']); // Obtener todos los tipos de juego
+Route::get('/setTypes', [\App\Http\Controllers\SetTypeController::class, 'index']); // Obtener todos los tipos de juego con paginacion
 Route::get('/setType/{id}', [\App\Http\Controllers\SetTypeController::class, 'show']); // Obtener un tipo de juego específico
 
 // Ruta para obtener tasa de cambio
