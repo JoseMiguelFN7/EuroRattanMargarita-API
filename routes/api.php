@@ -267,6 +267,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/dashboard/chart', [\App\Http\Controllers\DashboardController::class, 'getChartData']);
 
     //Rutas para las tasas de cambio
+    Route::post('/currencyExchange/force-bcv-sync', [\App\Http\Controllers\CurrencyExchangeController::class, 'syncBcvAsync']); // Endpoint para forzar sincronización de tasa BCV desde el frontend (con notificaciones en tiempo real)
     Route::get('/currencyExchange/ves/history', [\App\Http\Controllers\CurrencyExchangeController::class, 'getHistoryTable']);
     Route::get('/currencyExchange/ves/chart', [\App\Http\Controllers\CurrencyExchangeController::class, 'getHistoryChart']);
 

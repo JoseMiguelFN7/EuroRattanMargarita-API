@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use App\Models\Currency;
 use App\Models\CurrencyExchange;
+use App\Jobs\FetchBcvRateJob;
 
 class CurrencyExchangeController extends Controller
 {
@@ -154,5 +155,18 @@ class CurrencyExchangeController extends Controller
         });
 
         return response()->json($chartData);
+    }
+
+    public function syncBcvAsync()
+    {
+        $userId = auth('sanctum')->id();
+
+        // 1. Despachamos el trabajo a la cola (background), pasándole quién lo pidió
+        FetchBcvRateJob::dispatch($userId);
+
+        // 2. Respondemos al instante para no bloquear el Frontend
+        return response()->json([
+            'message' => 'La sincronización se está ejecutando en segundo plano. Recibirás una notificación en breve.'
+        ], 202); 
     }
 }

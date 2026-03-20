@@ -149,6 +149,7 @@ class PermissionsSeeder extends Seeder
             // 16. TASAS DE CAMBIO
             'Tasas de Cambio' => [
                 ['slug' => 'currency_rates.view',   'name' => 'Ver Tasas de Cambio'],
+                ['slug' => 'currency_rates.sync',   'name' => 'Sincronizar Tasa BCV'],
             ]
         ];
 
