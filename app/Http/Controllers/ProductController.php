@@ -569,7 +569,6 @@ class ProductController extends Controller
             'items' => 'required|array',
             'items.*.productId' => 'required|exists:products,id',
             'items.*.variantId' => 'nullable|integer', 
-            // 1. CAMBIO: De 'integer' a 'numeric' y min > 0 para permitir decimales como 0.5
             'items.*.quantity' => 'required|numeric|gt:0',
         ]);
 
@@ -581,7 +580,6 @@ class ProductController extends Controller
         $productRelations = [
             'images',
             'stocks', 
-            // 2. CAMBIO: Cargamos la unidad del material para evitar consultas N+1
             'material.unit',
             'furniture.materials', 
             'furniture.labors',
@@ -599,9 +597,9 @@ class ProductController extends Controller
             if ($isMaterial) {
                 if ($variantId) {
                     $stockData = $productModel->stocks->where('colorID', $variantId)->first();
-                    return $stockData ? (float) $stockData->stock : 0; // Casteo a float
+                    return $stockData ? (float) $stockData->stock : 0; 
                 } else {
-                    return (float) $productModel->stocks->sum('stock'); // Casteo a float
+                    return (float) $productModel->stocks->sum('stock'); 
                 }
             } else {
                 if ($variantId) {
@@ -619,7 +617,6 @@ class ProductController extends Controller
             $variantId = $item['variantId'] ?? null;
             $allocKey = $variantId ?? 'all'; 
             
-            // 3. CAMBIO: Casteamos a float en lugar de int para no perder los decimales
             $reqQty = (float) $item['quantity'];
             
             $colorModel = $variantId ? ($colorsData[$variantId] ?? null) : null;
@@ -629,8 +626,9 @@ class ProductController extends Controller
             $price = 0;
             $maxCanBuy = 0; 
             
-            // Por defecto, asumimos que no permite decimales (Sets y Muebles)
+            // --- NUEVO: Variables por defecto ---
             $allowsDecimals = false;
+            $unitName = 'Und'; // Unidad por defecto para Muebles y Juegos
 
             if ($product->set) {
                 $precios = $product->set->calcularPrecios();
@@ -682,8 +680,9 @@ class ProductController extends Controller
             elseif ($product->material) {
                 $price = $product->material->price; 
                 
-                // Extraemos la regla de la unidad
+                // --- NUEVO: Extraemos la unidad real del material ---
                 $allowsDecimals = $product->material->unit->allows_decimals ?? false;
+                $unitName = $product->material->unit->name ?? 'Und';
 
                 $fTotalStock = $getTotalStock($product, $variantId, true);
                 $fAllocated  = $allocatedStock[$product->id][$allocKey] ?? 0;
@@ -705,14 +704,11 @@ class ProductController extends Controller
                                         : null,
                 'price'              => (float) $price,
                 'discount'           => (float) $product->discount,
-                
-                // 4. CAMBIO: De (int) a (float) para reflejar stocks decimales
                 'stock_available'    => (float) $maxCanBuy, 
                 'quantity'           => (float) $reqQty,
                 'insufficient_stock' => $reqQty > $maxCanBuy,
-                
-                // 5. CAMBIO: Enviamos el nuevo booleano
                 'allows_decimals'    => $allowsDecimals,
+                'unit'               => $unitName,
             ];
         }
 
