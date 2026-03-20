@@ -12,9 +12,22 @@ class BannerImageController extends Controller
     public function index(Request $request) 
     {
         $perPage = $request->input('per_page', 10);
+        $search = $request->input('search'); // Para buscar por título
 
-        $banners = BannerImage::orderBy('order', 'asc')->paginate($perPage);
+        // Iniciamos el Query Builder
+        $banners = BannerImage::query()
+            ->when($search, function ($query, $search) {
+                $query->where('title', 'like', "%{$search}%");
+            })
+            // Verificamos si enviaron 'is_active' y que no sea un string vacío
+            ->when($request->has('is_active') && $request->input('is_active') !== '', function ($query) use ($request) {
+                $isActive = filter_var($request->input('is_active'), FILTER_VALIDATE_BOOLEAN);
+                $query->where('is_active', $isActive);
+            })
+            ->orderBy('order', 'asc')
+            ->paginate($perPage);
         
+        // Transformación de la ruta de imagen
         $banners->through(function ($banner) {
             $banner->image_path = asset('storage/' . $banner->image_path);
             return $banner;
