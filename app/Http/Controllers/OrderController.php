@@ -500,7 +500,7 @@ class OrderController extends Controller
             'payment_method_ids'            => 'required_with:payments|array', // Validar IGTF
             'payments.*.payment_method_id'  => 'required_with:payments|exists:payment_methods,id',
             'payments.*.reference_number'   => 'nullable|string|max:50',
-            'payments.*.proof_image'        => 'nullable|image|mimes:jpeg,png,jpg|max:2048'
+            'payments.*.proof_image'        => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048'
         ]);
 
         if ($validator->fails()) return response()->json(['errors' => $validator->errors()], 422);
@@ -644,7 +644,7 @@ class OrderController extends Controller
             'payment_method_ids'            => 'required_with:payments|array', 
             'payments.*.payment_method_id'  => 'required_with:payments|exists:payment_methods,id',
             'payments.*.reference_number'   => 'nullable|string|max:50',
-            'payments.*.proof_image'        => 'nullable|image|mimes:jpeg,png,jpg|max:2048'
+            'payments.*.proof_image'        => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048'
         ]);
 
         if ($validator->fails()) return response()->json(['errors' => $validator->errors()], 422);
