@@ -14,7 +14,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use Throwable;
 
 class OrderController extends Controller
 {
@@ -608,7 +610,7 @@ class OrderController extends Controller
 
             return response()->json($order->load(['products', 'payments']), 201);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             DB::rollback();
             // Borrar todas las imágenes que se subieron antes de que fallara
             foreach ($uploadedPaths as $path) {
@@ -616,6 +618,9 @@ class OrderController extends Controller
                     Storage::disk('public')->delete($path);
                 }
             }
+
+            Log::error('Fallo creando orden: ' . $e->getMessage() . ' en ' . $e->getFile() . ':' . $e->getLine());
+
             return response()->json([
                 'message' => 'Error al crear la orden.',
                 'error'   => $e->getMessage()

@@ -511,7 +511,7 @@ class CommissionController extends Controller
             'furnitureType', 
             'product.images', 
             'product.stocks',
-            'materials.materialTypes',
+            'materials.materialType.category',
             'labors'
         ])
         // EL FILTRO CLAVE: Solo los muebles que pertenezcan al encargo con este código
