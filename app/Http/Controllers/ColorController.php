@@ -74,20 +74,32 @@ class ColorController extends Controller
         return response()->json($color);
     }
 
-    public function delete($id){
+    public function delete($id)
+    {
         $color = Color::find($id);
 
         if(!$color){
             return response()->json(['message' => 'Color not found'], 404);
         }
 
+        // 1. Validamos que no esté vinculado a ningún producto (Material o Mueble) actualmente
         if ($color->products()->exists()) {
             return response()->json([
                 'message' => 'No se puede eliminar el color.',
-                'reason' => 'El color está asignado a uno o más productos.'
+                'reason' => 'El color está asignado a uno o más productos activos del catálogo.'
             ], 409);
         }
 
+        // --- NUEVA VALIDACIÓN: EL BLINDAJE DEL KARDEX ---
+        // 2. Validamos que el color no tenga historia en los movimientos de inventario
+        if ($color->productMovements()->exists()) {
+            return response()->json([
+                'message' => 'No se puede eliminar el color.',
+                'reason' => 'Este color tiene movimientos históricos registrados en el inventario. Eliminarlo corrompería el Kardex.'
+            ], 409);
+        }
+
+        // Si pasa ambas pruebas, es un color "virgen" y es seguro borrarlo
         $color->delete();
 
         return response()->json(['message' => 'Color eliminado correctamente.'], 200);

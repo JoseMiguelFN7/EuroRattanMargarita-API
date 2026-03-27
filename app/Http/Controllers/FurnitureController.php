@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Furniture;
 use App\Models\Product;
+use App\Models\ProductMovement;
+use App\Models\Color;
 use App\Models\Currency;
 use App\Services\InventoryService;
 use App\Jobs\GenerateFurnituresPdf;
@@ -452,6 +454,37 @@ class FurnitureController extends Controller
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()->messages()], 422);
+        }
+
+        if ($request->has('colors')) {
+            $requestedColors = $request->input('colors');
+            
+            // 1. Obtenemos los colores que el producto (mueble) tiene ACTUALMENTE
+            $currentColors = $product->colors()->pluck('colors.id')->toArray();
+            
+            // 2. Comparamos para aislar los colores que el usuario intenta QUITAR
+            $colorsToDetach = array_diff($currentColors, $requestedColors);
+
+            if (!empty($colorsToDetach)) {
+                // 3. Buscamos si existe algún movimiento histórico para este mueble y esos colores
+                $colorsWithMovements = ProductMovement::where('product_id', $product->id)
+                    ->whereIn('color_id', $colorsToDetach)
+                    ->pluck('color_id')
+                    ->unique()
+                    ->toArray();
+
+                // 4. Bloqueamos la petición si hay conflictos
+                if (!empty($colorsWithMovements)) {
+                    $colorNames = Color::whereIn('id', $colorsWithMovements)->pluck('name')->implode(', ');
+                    
+                    return response()->json([
+                        'message' => 'Validación de inventario fallida.',
+                        'errors' => [
+                            'colors' => ["No puedes desvincular los siguientes colores porque este mueble ya tiene movimientos de inventario registrados con ellos: {$colorNames}."]
+                        ]
+                    ], 422);
+                }
+            }
         }
 
         DB::beginTransaction();

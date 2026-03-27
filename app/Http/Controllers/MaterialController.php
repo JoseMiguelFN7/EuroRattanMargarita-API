@@ -7,6 +7,8 @@ use App\Models\Material;
 use App\Models\MaterialType;
 use App\Models\Product;
 use App\Models\Currency;
+use App\Models\ProductMovement;
+use App\Models\Color;
 use Exception;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
@@ -612,6 +614,39 @@ class MaterialController extends Controller
             return response()->json([
                 'errors' => $validator->errors()->messages()
             ], 422);
+        }
+
+        // --- NUEVA VALIDACIÓN DE INVENTARIO PARA COLORES ---
+        if ($request->has('colors')) {
+            $requestedColors = $request->input('colors');
+            
+            // 1. Obtenemos los colores que el producto tiene ACTUALMENTE
+            $currentColors = $product->colors()->pluck('colors.id')->toArray();
+            
+            // 2. Comparamos para saber cuáles colores se están intentando QUITAR
+            $colorsToDetach = array_diff($currentColors, $requestedColors);
+
+            if (!empty($colorsToDetach)) {
+                // 3. Verificamos si existe AL MENOS UN movimiento para esos colores y este producto
+                $colorsWithMovements = ProductMovement::where('product_id', $product->id)
+                    ->whereIn('color_id', $colorsToDetach)
+                    ->pluck('color_id')
+                    ->unique()
+                    ->toArray();
+
+                // 4. Si encontramos movimientos, abortamos con un error 422
+                if (!empty($colorsWithMovements)) {
+                    // Buscamos los nombres de los colores para darle un mensaje claro al usuario
+                    $colorNames = Color::whereIn('id', $colorsWithMovements)->pluck('name')->implode(', ');
+                    
+                    return response()->json([
+                        'message' => 'Validación de inventario fallida.',
+                        'errors' => [
+                            'colors' => ["No puedes desvincular los siguientes colores porque ya tienen movimientos en el inventario: {$colorNames}."]
+                        ]
+                    ], 422);
+                }
+            }
         }
 
         DB::beginTransaction();
