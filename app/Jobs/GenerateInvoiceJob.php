@@ -142,6 +142,13 @@ class GenerateInvoiceJob implements ShouldQueue
         // --- ENVIAR EL CORREO AL USUARIO ---
         if (isset($this->generatedInvoice) && $this->order->user) {
             Mail::to($this->order->user->email)->send(new OrderInvoiceMail($this->order, $this->generatedInvoice));
+            
+            // --- NUEVO: DISPARAR EL EVENTO HACIA REVERB ---
+            \App\Events\InvoiceGenerated::dispatch(
+            $this->order->code, 
+            $this->generatedInvoice->pdf_url, 
+            $this->order->user_id
+        );
         }
     }
 
