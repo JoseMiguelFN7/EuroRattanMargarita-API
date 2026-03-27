@@ -266,6 +266,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/banner', [\App\Http\Controllers\BannerImageController::class, 'store']); // Crear Banner
     Route::get('/banner/{id}', [\App\Http\Controllers\BannerImageController::class, 'show']); // Obtener Banner
     Route::post('/banner/{id}', [\App\Http\Controllers\BannerImageController::class, 'update']); // Actualizar Banner
+    Route::post('/banners/reorder', [\App\Http\Controllers\BannerImageController::class, 'reorder']); // Actualizar orden de Banners
     Route::delete('/banner/{id}', [\App\Http\Controllers\BannerImageController::class, 'destroy']); // Eliminar Banner
 
     // Rutas para datos del dashboard

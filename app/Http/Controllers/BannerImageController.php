@@ -6,6 +6,9 @@ use App\Models\BannerImage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class BannerImageController extends Controller
 {
@@ -156,6 +159,46 @@ class BannerImageController extends Controller
 
         } catch (\Exception $e) {
             return response()->json(['message' => 'Error al actualizar', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    public function reorder(Request $request)
+    {
+        // 1. Validamos que nos envíen un arreglo con la estructura correcta
+        $validator = Validator::make($request->all(), [
+            'banners'           => 'required|array',
+            'banners.*.id'      => 'required|integer|exists:banner_images,id',
+            'banners.*.order'   => 'required|integer|min:0',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()->messages()], 422);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // 2. Recorremos el arreglo y actualizamos solo la columna 'order'
+            foreach ($request->banners as $bannerData) {
+                BannerImage::where('id', $bannerData['id'])
+                           ->update(['order' => $bannerData['order']]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Banners reordenados correctamente.'
+            ], 200);
+
+        } catch (Throwable $e) {
+            DB::rollBack();
+            
+            Log::error('Error al reordenar banners: ' . $e->getMessage());
+
+            return response()->json([
+                'message' => 'Ocurrió un error al intentar reordenar los banners.',
+                'error'   => $e->getMessage()
+            ], 500);
         }
     }
 
