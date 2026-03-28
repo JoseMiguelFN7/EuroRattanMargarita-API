@@ -19,6 +19,16 @@ jobs:
         id: set_version
         run: echo "VERSION=$(date +'%Y.%m.%d-%H%M')" >> $GITHUB_ENV
 
+      - name: Set lowercased image base name
+        run: |
+          # Convertimos dueño a minúsculas (josemiguelfn7)
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          # Convertimos nombre del repo a minúsculas (eurorattanmargarita-api)
+          REPO_LC=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
+          
+          # Construimos la base de la imagen y la guardamos en $GITHUB_ENV
+          echo "IMAGE_BASE=ghcr.io/$OWNER_LC/$REPO_LC" >> $GITHUB_ENV
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -37,8 +47,8 @@ jobs:
           push: true
           # Reemplaza 'josemiguelfn7/erm-api' por tu nombre de usuario/repo real
           tags: |
-            ghcr.io/${{ github.repository_owner }}/erm-api:latest
-            ghcr.io/${{ github.repository_owner }}/erm-api:${{ env.VERSION }}
+            ${{ env.IMAGE_BASE }}:latest
+            ${{ env.IMAGE_BASE }}:${{ env.VERSION }}
           # Esto optimiza el build usando caché de GitHub Actions
           cache-from: type=gha
           cache-to: type=gha,mode=max
