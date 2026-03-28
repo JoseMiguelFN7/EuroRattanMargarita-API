@@ -18,30 +18,33 @@
                         <td align="center" style="padding: 40px 30px; color: #333333;">
                             
                             @if($payment->status === 'verified')
-                                <h2 style="font-size: 22px; margin-top: 0; color: #27ae60;">¡Pago Aprobado!</h2>
-                                <p style="font-size: 16px; line-height: 1.6; color: #555555; margin-bottom: 25px;">
-                                    Hola <strong>{{ $payment->order->user->name }}</strong>, hemos verificado exitosamente un pago asociado a tu orden <strong>#{{ $payment->order->code }}</strong>.
-                                </p>
+                                <h2 style="font-size: 22px; margin-top: 0; color: #27ae60;">¡Tu pago ha sido Aprobado!</h2>
                             @else
                                 <h2 style="font-size: 22px; margin-top: 0; color: #c0392b;">Aviso de Pago Rechazado</h2>
-                                <p style="font-size: 16px; line-height: 1.6; color: #555555; margin-bottom: 25px;">
-                                    Hola <strong>{{ $payment->order->user->name }}</strong>, hemos revisado tu reporte de pago para la orden <strong>#{{ $payment->order->code }}</strong> y no pudimos validarlo en nuestras cuentas.
-                                </p>
                             @endif
 
-                            <table cellpadding="0" cellspacing="0" border="0" bgcolor="#f8f9fa" style="border: 1px solid #bdc3c7; border-radius: 8px; margin: 0 auto; width: 100%; text-align: left;">
-                                <tr>
-                                    <td style="padding: 20px;">
-                                        <p style="margin: 0 0 10px 0; font-size: 14px;"><strong>Monto:</strong> {{ $payment->currency ? $payment->currency->code : 'USD' }} {{ number_format($payment->amount, 2, ',', '.') }}</p>
-                                        <p style="margin: 0 0 10px 0; font-size: 14px;"><strong>Método:</strong> {{ $payment->paymentMethod ? $payment->paymentMethod->name : 'N/A' }}</p>
-                                        <p style="margin: 0; font-size: 14px;"><strong>Referencia:</strong> {{ $payment->reference_number ?: 'N/A' }}</p>
-                                    </td>
-                                </tr>
-                            </table>
+                            <p style="font-size: 16px; line-height: 1.6; color: #555555; margin-bottom: 25px;">
+                                Hola <strong>{{ $payment->order->user->name }}</strong>, hemos procesado la revisión de un pago específico asociado a tu orden <strong>#{{ $payment->order->code }}</strong>.
+                            </p>
+
+                            <div style="background-color: #f8f9fa; border-left: 4px solid {{ $payment->status === 'verified' ? '#27ae60' : '#c0392b' }}; padding: 15px 20px; text-align: left; margin-bottom: 30px;">
+                                <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #333;">Detalles del Pago Revisado:</h3>
+                                <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>Monto:</strong> {{ $payment->currency ? $payment->currency->code : 'USD' }} {{ number_format($payment->amount, 2, ',', '.') }}</p>
+                                <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>Método:</strong> {{ $payment->paymentMethod ? $payment->paymentMethod->name : 'N/A' }}</p>
+                                <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>Referencia:</strong> {{ $payment->reference_number ?: 'N/A' }}</p>
+                                <p style="margin: 0; font-size: 14px;"><strong>Fecha del pago:</strong> {{ $payment->created_at->format('d/m/Y h:i A') }}</p>
+                            </div>
+
+                            <div style="background-color: #e9f2fa; border-radius: 6px; padding: 20px; text-align: center;">
+                                <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #2c3e50;">¿Qué significa esto para tu orden?</h3>
+                                <p style="margin: 0; font-size: 15px; color: #34495e; font-weight: bold;">
+                                    {{ $orderMessage }}
+                                </p>
+                            </div>
 
                             @if($payment->status === 'rejected')
                                 <p style="font-size: 14px; color: #7f8c8d; line-height: 1.5; margin-top: 30px;">
-                                    Por favor, verifica los datos de tu transferencia o pago móvil y vuelve a reportarlo desde la plataforma, o contáctanos si crees que se trata de un error.
+                                    * Te recomendamos verificar los datos de la transferencia de este pago específico y volver a reportarlo desde la plataforma si consideras que hubo un error al ingresarlo.
                                 </p>
                             @endif
                             

@@ -423,7 +423,7 @@ class PaymentController extends Controller
 
             // ENVIAR EL CORREO AL USUARIO
             if ($order->user) {
-                Mail::to($order->user->email)->send(new PaymentVerificationMail($payment));
+                Mail::to($order->user->email)->send(new PaymentVerificationMail($payment, $message));
             }
 
             return response()->json([

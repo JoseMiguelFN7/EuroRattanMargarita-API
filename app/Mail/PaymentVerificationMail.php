@@ -19,11 +19,13 @@ class PaymentVerificationMail extends Mailable implements ShouldQueue
     public $backoff = [10, 30];
 
     public $payment;
+    public $orderMessage;
 
-    public function __construct(Payment $payment)
+    public function __construct(Payment $payment, $orderMessage)
     {
         // Aseguramos que las relaciones necesarias estén cargadas
         $this->payment = $payment->loadMissing(['order.user', 'currency', 'paymentMethod']);
+        $this->orderMessage = $orderMessage;
     }
 
     public function envelope(): Envelope
