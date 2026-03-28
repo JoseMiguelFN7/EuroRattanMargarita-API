@@ -32,7 +32,7 @@ class OrderInvoiceMail extends Mailable implements ShouldQueue
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Comprobante de Digital - Orden #' . $this->order->code,
+            subject: 'Comprobante Digital - Orden #' . $this->order->code,
         );
     }
 
