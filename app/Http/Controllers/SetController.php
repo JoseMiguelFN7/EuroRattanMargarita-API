@@ -133,14 +133,15 @@ class SetController extends Controller
             // --- C. LIMPIEZA VISUAL ---
             $product = $set->product;
             if ($product) {
-                // Imagen para la tabla
+                // Imagen para la tabla (CORREGIDO)
                 if ($product->images->isNotEmpty()) {
-                    $product->images = $product->images->map(function ($image) {
-                        return asset('storage/' . $image->url);
+                    $product->images->transform(function ($image) {
+                        // Modificamos solo el atributo url de cada objeto imagen
+                        $image->url = asset('storage/' . $image->url);
+                        return $image;
                     });
-                } else {
-                    $product->images = null;
                 }
+                
                 // Ocultamos datos pesados del producto
                 $product->makeHidden(['created_at', 'updated_at', 'description', 'sell', 'stocks']);
             }
