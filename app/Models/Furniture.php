@@ -15,6 +15,7 @@ class Furniture extends Model
         'labor_fab_per',
         'furniture_type_id',
         'commission_id',
+        'model_3d'
     ];
 
     public function product()

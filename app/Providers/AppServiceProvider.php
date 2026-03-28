@@ -32,21 +32,27 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        if (Schema::hasTable('permissions'))
-        {
-            $permissions = Permission::all();
-
-            foreach ($permissions as $permission) {
-                Gate::define($permission->slug, function ($user) use ($permission) {
-                    return $user->hasPermission($permission->slug);
-                });
+        // --- BLOQUE DE PERMISOS (CONSTRUIDO PARA SER TOLERANTE A FALLOS) ---
+        try {
+            if (!app()->runningInConsole()) {
+                if (\Illuminate\Support\Facades\Schema::hasTable('permissions')) {
+                    $permissions = \App\Models\Permission::all();
+                    foreach ($permissions as $permission) {
+                        \Illuminate\Support\Facades\Gate::define($permission->slug, function ($user) use ($permission) {
+                            return $user->hasPermission($permission->slug);
+                        });
+                    }
+                }
             }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::warning("Base de datos no lista aún. Saltando carga de permisos.");
         }
 
-        Order::observe(OrderObserver::class);
-        Commission::observe(CommissionObserver::class);
-        CommissionSuggestion::observe(SuggestionObserver::class);
-        Payment::observe(PaymentObserver::class);
-        ProductMovement::observe(ProductMovementObserver::class);
+        // --- REGISTRO DE OBSERVERS (ESTOS NO NECESITAN DB ACTIVA PARA REGISTRARSE) ---
+        \App\Models\Order::observe(\App\Observers\OrderObserver::class);
+        \App\Models\Commission::observe(\App\Observers\CommissionObserver::class);
+        \App\Models\CommissionSuggestion::observe(\App\Observers\SuggestionObserver::class);
+        \App\Models\Payment::observe(\App\Observers\PaymentObserver::class);
+        \App\Models\ProductMovement::observe(\App\Observers\ProductMovementObserver::class);
     }
 }

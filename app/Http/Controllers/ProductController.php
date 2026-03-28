@@ -333,6 +333,10 @@ class ProductController extends Controller
             $furniture->pvp_natural_VES = round($precios['pvp_natural'] * $vesRate, 2);
             $furniture->pvp_color_VES   = round($precios['pvp_color'] * $vesRate, 2);
 
+            if ($furniture->model_3d) {
+                $furniture->model_3d = url('/api/models/3d/' . basename($furniture->model_3d));
+            }
+
             $furniture->makeHidden(['product', 'materials', 'labors', 'created_at', 'updated_at', 'product_id']);
 
             if ($furniture->furnitureType) {
@@ -485,9 +489,9 @@ class ProductController extends Controller
             'images', 
             'colors',
             'material', 
-            'furniture.materials.materialTypes', 
+            'furniture.materials.materialType.category',
             'furniture.labors',
-            'set.furnitures.materials.materialTypes',
+            'set.furnitures.materials.materialType.category',
             'set.furnitures.labors'
         ])->where('sell', true);
 

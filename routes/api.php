@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Broadcast;
+use Illuminate\Support\Facades\Storage;
 
 // Endpoint para verificar conexión con Reverb
 Broadcast::routes(['middleware' => ['auth:sanctum']]);
@@ -42,7 +43,6 @@ Route::get('/material/cod/{cod}', [\App\Http\Controllers\MaterialController::cla
 Route::get('/material/{id}', [\App\Http\Controllers\MaterialController::class, 'show']); // Obtener un material específico
 Route::get('/materials/{quantity}', [\App\Http\Controllers\MaterialController::class, 'rand']); // Obtener una cantidad de materiales en orden aleatorio
 Route::get('/materialsByCategory/name/{name}', [\App\Http\Controllers\MaterialController::class, 'indexByCategoryName']); // Obtener materiales segun categoria por nombre (Estructural o Tapicería)
-Route::get('/materialsByType/{quantity}', [\App\Http\Controllers\MaterialController::class, 'randByMaterialType']); // Obtener una cantidad de materiales en orden aleatorio segun tipos
 
 // Rutas para el CRUD de unidades
 Route::get('/units/all', [\App\Http\Controllers\UnitController::class, 'indexAll']); // Obtener todas las unidades sin paginacion
@@ -79,6 +79,18 @@ Route::get('/currencyExchange/{code}/latest', [\App\Http\Controllers\CurrencyExc
 
 // Rutas para imagenes de banners
 Route::get('/banners/active', [\App\Http\Controllers\BannerImageController::class, 'active']); //Obtener imagenes activas para index de tienda
+
+// Ruta para servir modelos 3D con Headers de CORS
+Route::get('/models/3d/{filename}', function ($filename) {
+    $path = 'assets/3d_models/' . $filename;
+
+    if (!Storage::disk('public')->exists($path)) {
+        return response()->json(['message' => 'Modelo no encontrado'], 404);
+    }
+
+    // response()->file() lo descarga físicamente, y como está en api.php, Laravel le inyecta los headers CORS automáticamente.
+    return response()->file(Storage::disk('public')->path($path));
+});
 
 Route::middleware(['auth:sanctum'])->group(function () {
     // Rutas para el CRUD de usuarios

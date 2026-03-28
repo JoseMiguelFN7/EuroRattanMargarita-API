@@ -12,6 +12,7 @@ use App\Services\InventoryService;
 use App\Jobs\GenerateFurnituresPdf;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class FurnitureController extends Controller
 {
@@ -237,6 +238,10 @@ class FurnitureController extends Controller
             return asset('storage/' . $image->url);
         });
 
+        if ($furniture->model_3d) {
+            $furniture->model_3d = asset('storage/' . $furniture->model_3d);
+        }
+
         return response()->json($furniture);
     }
 
@@ -291,6 +296,10 @@ class FurnitureController extends Controller
             $furniture->furnitureType->makeHidden(['created_at', 'updated_at']);
         }
 
+        if ($furniture->model_3d) {
+            $furniture->model_3d = asset('storage/' . $furniture->model_3d);
+        }
+
         return response()->json($furniture);
     }
 
@@ -341,7 +350,8 @@ class FurnitureController extends Controller
             'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
             'colors' => 'required|array',
             'colors.*' => 'integer|exists:colors,id',
-            'commission_code' => 'nullable|string|exists:commissions,code'
+            'commission_code' => 'nullable|string|exists:commissions,code',
+            'model_3d' => 'nullable|file|max:10240|mimetypes:model/gltf-binary,model/gltf+json,application/octet-stream'
         ]);
 
         if ($validator->fails()) {
@@ -368,6 +378,11 @@ class FurnitureController extends Controller
                 $commissionId = \App\Models\Commission::where('code', $request->commission_code)->value('id');
             }
 
+            $model3dPath = null;
+            if ($request->hasFile('model_3d')) {
+                $model3dPath = $request->file('model_3d')->store('assets/3d_models', 'public');
+            }
+
             $furniture = Furniture::create([
                 'product_id' => $product->id,
                 'furniture_type_id' => $request->furnitureType_id,
@@ -375,6 +390,7 @@ class FurnitureController extends Controller
                 'paint_per' => $request->paint_per,
                 'labor_fab_per' => $request->labor_fab_per,
                 'commission_id' => $commissionId,
+                'model_3d' => $model3dPath
             ]);
 
             if ($request->hasFile('images')) {
@@ -408,6 +424,10 @@ class FurnitureController extends Controller
 
         } catch (\Exception $e) {
             DB::rollback();
+
+            if (isset($model3dPath) && Storage::disk('public')->exists($model3dPath)) {
+                Storage::disk('public')->delete($model3dPath);
+            }
             
             return response()->json([
                 'message' => 'Error al guardar el mueble.',
@@ -449,7 +469,9 @@ class FurnitureController extends Controller
             'kept_images' => 'nullable|array',
             'kept_images.*' => 'integer',
             'colors' => 'required|array',
-            'colors.*' => 'integer|exists:colors,id'
+            'colors.*' => 'integer|exists:colors,id',
+            'model_3d' => 'nullable|file|max:10240|mimetypes:model/gltf-binary,model/gltf+json,application/octet-stream',
+            'remove_model_3d' => 'nullable|in:0,1,true,false'
         ]);
 
         if ($validator->fails()) {
@@ -501,6 +523,21 @@ class FurnitureController extends Controller
             $furniture->fill($request->only([
                 'profit_per', 'paint_per', 'labor_fab_per'
             ]));
+
+            if ($request->hasFile('model_3d')) {
+                // CASO A: Viene un archivo nuevo (Reemplazo)
+                if ($furniture->model_3d && Storage::disk('public')->exists($furniture->model_3d)) {
+                    Storage::disk('public')->delete($furniture->model_3d);
+                }
+                $furniture->model_3d = $request->file('model_3d')->store('assets/3d_models', 'public');
+
+            } elseif ($request->input('remove_model_3d') == '1' || $request->boolean('remove_model_3d')) {
+                // CASO B: El usuario decidió borrar el modelo explícitamente sin subir otro
+                if ($furniture->model_3d && Storage::disk('public')->exists($furniture->model_3d)) {
+                    Storage::disk('public')->delete($furniture->model_3d);
+                }
+                $furniture->model_3d = null; // Dejamos la columna vacía en la base de datos
+            }
 
             if ($request->has('kept_images')) {
                 $keptIds = $request->input('kept_images');
@@ -584,6 +621,10 @@ class FurnitureController extends Controller
             }
 
             $product = $furniture->product;
+
+            if ($furniture->model_3d && Storage::disk('public')->exists($furniture->model_3d)) {
+                Storage::disk('public')->delete($furniture->model_3d);
+            }
 
             $furniture->materials()->detach();
             $furniture->labors()->detach();
