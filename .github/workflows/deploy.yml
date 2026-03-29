@@ -70,11 +70,11 @@ jobs:
             # 2. Login en GHCR dentro de la VPS usando el token
             echo ${{ secrets.GHCR_PAT }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
-            # 3. Descargar imagen fresca
-            docker compose pull
+            # 3. Descargar SOLO las imágenes frescas del backend
+            docker compose pull api reverb queue scheduler
             
-            # 4. Levantar contenedores nuevos
-            docker compose up -d
+            # 4. Levantar SOLO contenedores del backend (MySQL y Redis subirán solos si están apagados)
+            docker compose up -d api reverb queue scheduler
             
             # 5. Tareas de Laravel: Migraciones y caché
             docker exec erm_api php artisan migrate --force
