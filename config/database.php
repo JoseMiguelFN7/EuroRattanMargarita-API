@@ -63,7 +63,7 @@ return [
             'dump' => [
                'use_single_transaction' => true,
                'timeout' => 60 * 5, // 5 minutos de tiempo límite
-               'add_extra_option' => '--ssl-mode=DISABLED',
+               'add_extra_option' => '--skip-ssl --no-tablespaces', 
             ],
         ],
 
