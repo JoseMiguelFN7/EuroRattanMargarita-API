@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // 1. Corregir tabla Products
+        // 1. Corregir tabla Products (Se mantiene igual, es segura)
         if (Schema::hasTable('products') && !Schema::hasColumn('products', 'discount')) {
             Schema::table('products', function (Blueprint $table) {
                 $table->decimal('discount', 8, 2)->default(0)->after('sell');
@@ -23,8 +23,13 @@ return new class extends Migration
                     $table->renameColumn('cost', 'price');
                 }
                 
-                // Eliminar columna residual si existe
+                // --- AQUÍ ESTÁ EL CAMBIO ---
                 if (Schema::hasColumn('materials', 'material_types_id')) {
+                    // Primero eliminamos la relación (Constraint)
+                    // Laravel por convención le pone este nombre:
+                    $table->dropForeign(['material_types_id']); 
+                    
+                    // Ahora que no tiene ataduras, la borramos
                     $table->dropColumn('material_types_id');
                 }
             });
