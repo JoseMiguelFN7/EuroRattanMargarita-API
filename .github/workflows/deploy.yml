@@ -63,22 +63,20 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script_stop: true 
+          command_timeout: 30m # <-- NUEVO: Le damos hasta 30 minutos a GitHub por si la descarga es lenta
           script: |
-            # 1. Navegamos a la carpeta oficial de producción
             cd /var/www/eurorattanmgta.com
             
-            # 2. Login en GHCR dentro de la VPS usando el token
             echo ${{ secrets.GHCR_PAT }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
-            # 3. Descargar SOLO las imágenes frescas del backend
             docker compose pull api reverb queue scheduler
-            
-            # 4. Levantar SOLO contenedores del backend (MySQL y Redis subirán solos si están apagados)
             docker compose up -d api reverb queue scheduler
             
-            # 5. Tareas de Laravel: Migraciones y caché
+            # --- LA MAGIA ESTÁ AQUÍ ---
+            echo "Esperando 30 segundos para que MySQL termine de inicializarse..."
+            sleep 30
+            
+            # Ahora sí, disparamos Laravel de forma segura
             docker exec erm_api php artisan migrate --force
             docker exec erm_api php artisan optimize:clear
-            
-            # 6. Reiniciar workers de colas
             docker exec erm_api php artisan queue:restart
