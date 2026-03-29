@@ -6,6 +6,13 @@ ENV SERVER_NAME=":80"
 ENV FRANKENPHP_MAX_REQUEST_BODY_SIZE=104857600
 ENV MAX_UPLOAD_FILESIZE=100M
 
+# =========================================================================
+# 1.5 Instalamos el cliente de MySQL (ESTA ES LA LLAVE PARA LOS BACKUPS)
+# =========================================================================
+RUN apt-get update && apt-get install -y \
+    default-mysql-client \
+    && rm -rf /var/lib/apt/lists/*
+
 # 2. Instalamos las extensiones de PHP necesarias para Laravel, Redis y Octane
 # (La imagen de FrankenPHP trae un script mágico para instalar extensiones fácilmente)
 RUN install-php-extensions \
