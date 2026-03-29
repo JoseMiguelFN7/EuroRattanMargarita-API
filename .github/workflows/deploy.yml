@@ -1,15 +1,18 @@
-name: Build and Push to GHCR
+name: Build, Push and Deploy to VPS
 
 on:
   push:
     branches: [production] # Se dispara cuando hagas merge a production
 
 jobs:
+  # ==========================================
+  # 1. INTEGRACIÓN CONTINUA (CI) - Compila y sube
+  # ==========================================
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write # Crucial para que el token pueda subir la imagen
+      packages: write
 
     steps:
       - name: Checkout code
@@ -21,12 +24,8 @@ jobs:
 
       - name: Set lowercased image base name
         run: |
-          # Convertimos dueño a minúsculas (josemiguelfn7)
           OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          # Convertimos nombre del repo a minúsculas (eurorattanmargarita-api)
           REPO_LC=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
-          
-          # Construimos la base de la imagen y la guardamos en $GITHUB_ENV
           echo "IMAGE_BASE=ghcr.io/$OWNER_LC/$REPO_LC" >> $GITHUB_ENV
 
       - name: Set up Docker Buildx
@@ -36,7 +35,6 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          # Usamos variables automáticas de GitHub para no hardcodear
           username: ${{ github.actor }} 
           password: ${{ secrets.GHCR_PAT }}
 
@@ -45,13 +43,42 @@ jobs:
         with:
           context: .
           push: true
-          # Reemplaza 'josemiguelfn7/erm-api' por tu nombre de usuario/repo real
           tags: |
             ${{ env.IMAGE_BASE }}:latest
             ${{ env.IMAGE_BASE }}:${{ env.VERSION }}
-          # Esto optimiza el build usando caché de GitHub Actions
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Image Digest
-        run: echo "Imagen subida con éxito. Digest ${{ steps.docker_build.outputs.digest }}"
+  # ==========================================
+  # 2. DESPLIEGUE CONTINUO (CD) - Actualiza la VPS
+  # ==========================================
+  deploy-to-vps:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ejecutar despliegue en la VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true 
+          script: |
+            # 1. Navegamos a la carpeta oficial de producción
+            cd /var/www/eurorattanmgta.com
+            
+            # 2. Login en GHCR dentro de la VPS usando el token
+            echo ${{ secrets.GHCR_PAT }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # 3. Descargar imagen fresca
+            docker compose pull
+            
+            # 4. Levantar contenedores nuevos
+            docker compose up -d
+            
+            # 5. Tareas de Laravel: Migraciones y caché
+            docker exec erm_api php artisan migrate --force
+            docker exec erm_api php artisan optimize:clear
+            
+            # 6. Reiniciar workers de colas
+            docker exec erm_api php artisan queue:restart
