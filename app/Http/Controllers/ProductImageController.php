@@ -5,8 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\ProductImage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Intervention\Image\ImageManager;
-use Intervention\Image\Drivers\Gd\Driver;
 
 class ProductImageController extends Controller
 {
@@ -15,28 +13,25 @@ class ProductImageController extends Controller
         $uploadedImages = [];
 
         foreach ($files as $file) {
-            // Generar un nombre único para la imagen
-            $filename = time() . '-' . pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME) . '.webp';
+            // 1. Extraemos la extensión original (jpg, png, etc.)
+            $extension = $file->getClientOriginalExtension();
             
-            // Crear una instancia de ImageManager
-            $manager = new ImageManager(new Driver());
+            // 2. Generamos un nombre limpio (usamos Str::slug para evitar espacios o caracteres raros que rompan la URL)
+            $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+            $filename = time() . '-' . Str::slug($originalName) . '.' . $extension;
+            
+            // 3. Guardamos el archivo directamente en el disco 'public' (storage/app/public)
+            // Esto devuelve la ruta relativa, por ejemplo: "assets/productPics/168...-foto.jpg"
+            $path = $file->storeAs('assets/productPics', $filename, 'public');
 
-            // Cargar la imagen y convertirla a WebP usando Intervention Image
-            $webpImage = $manager->read($file)->toWebp(80);
-
-            // Definir la ruta para guardar la imagen convertida
-            $path = storage_path('app/public/assets/productPics/' . $filename);
-
-            // Guardar la imagen en la ubicación deseada
-            $webpImage->save($path);
-
-            // Guardar en la base de datos
+            // 4. Guardar en la base de datos
             $productImage = ProductImage::create([
-                'url' => 'assets/productPics/' . $filename,
+                'url' => $path, 
                 'product_id' => $productId,
             ]);
 
-            $uploadedImages[] = 'assets/productPics/' . $filename; // Guardar la URL para devolverla
+            // 5. Guardar la URL para devolverla
+            $uploadedImages[] = $path; 
         }
 
         return $uploadedImages;

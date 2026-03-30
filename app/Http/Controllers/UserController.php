@@ -11,8 +11,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
-use Intervention\Image\ImageManager;
-use Intervention\Image\Drivers\Gd\Driver;
+use Illuminate\Support\Str;
 use Illuminate\Auth\AuthenticationException;
 use App\Mail\VerifyEmailOtpMail;
 use App\Mail\ResetPasswordOtpMail;
@@ -91,26 +90,23 @@ class UserController extends Controller
         return response()->json($users);
     }
 
-    private function uploadPhoto(Request $r){
-        // Obtener el archivo de la solicitud
+    private function uploadPhoto(Request $r)
+    {
         $file = $r->file('image');
 
-        // Generar un nombre único para la imagen
-        $filename = time() . '-' . pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME) . '.webp';
+        // 1. Extraemos la extensión original
+        $extension = $file->getClientOriginalExtension();
+        
+        // 2. Generamos un nombre limpio y seguro para la URL
+        $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+        $filename = time() . '-' . Str::slug($originalName) . '.' . $extension;
 
-        // Crear una instancia de ImageManager
-        $manager = new ImageManager(new Driver());
+        // 3. Guardamos el archivo directamente en el disco 'public'
+        // Esto devuelve automáticamente la ruta: "assets/profilePics/nombre-del-archivo.jpg"
+        $path = $file->storeAs('assets/profilePics', $filename, 'public');
 
-        // Cargar la imagen y convertirla a WebP usando Intervention Image
-        $webpImage = $manager->read($file)->toWebp(80);
-
-        // Definir la ruta para guardar la imagen convertida
-        $path = storage_path('app/public/assets/profilePics/' . $filename);
-
-        // Guardar la imagen en la ubicación deseada
-        $webpImage->save($path);
-
-        return 'assets/profilePics/' . $filename;
+        // 4. Retornamos la ruta para que se guarde en la BD
+        return $path;
     }
 
     //Crear un nuevo usuario
