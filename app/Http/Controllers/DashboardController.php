@@ -17,15 +17,15 @@ class DashboardController extends Controller
         $showEgresos  = $request->boolean('expenses', true);
 
         $monthsCount = 6;
-        $startDate = Carbon::now()->subMonths($monthsCount - 1)->startOfMonth();
+        $startDate = Carbon::now()->startOfMonth()->subMonths($monthsCount - 1);
 
         $chartData = [];
         $mesesEspanol = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
         // 2. Pre-construir la estructura de los últimos 6 meses cronológicamente
         for ($i = $monthsCount - 1; $i >= 0; $i--) {
-            $date = Carbon::now()->subMonths($i);
-            $monthKey = $date->format('Y-m'); // Clave interna "2025-09"
+            $date = Carbon::now()->startOfMonth()->subMonths($i);
+            $monthKey = $date->format('Y-m');
             
             $baseObj = ['month' => $mesesEspanol[$date->month - 1]];
             
