@@ -534,7 +534,7 @@ class UserController extends Controller
         }
 
         return response()->json([
-            'title' => 'Correo o contraseña incorrectos'
+            'message' => 'Correo o contraseña incorrectos'
         ], 404);
     }
 
