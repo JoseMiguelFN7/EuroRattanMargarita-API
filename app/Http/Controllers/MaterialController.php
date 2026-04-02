@@ -463,7 +463,7 @@ class MaterialController extends Controller
             'max_stock' => 'nullable|numeric|gte:min_stock',
             'sell' => 'required|boolean',
             'images' => 'nullable|array',
-            'images.*' => 'image|mimes:jpeg,png,jpg,gif|max:2048',
+            'images.*' => 'image|mimes:jpeg,png,jpg,webp|max:2048',
             'colors' => 'nullable|array',
             'colors.*' => 'integer|exists:colors,id'
         ]);
