@@ -1,0 +1,82 @@
+name: Build, Push and Deploy to VPS
+
+on:
+  push:
+    branches: [production] # Se dispara cuando hagas merge a production
+
+jobs:
+  # ==========================================
+  # 1. INTEGRACIÓN CONTINUA (CI) - Compila y sube
+  # ==========================================
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set Version Tag
+        id: set_version
+        run: echo "VERSION=$(date +'%Y.%m.%d-%H%M')" >> $GITHUB_ENV
+
+      - name: Set lowercased image base name
+        run: |
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          REPO_LC=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_BASE=ghcr.io/$OWNER_LC/$REPO_LC" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }} 
+          password: ${{ secrets.GHCR_PAT }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE_BASE }}:latest
+            ${{ env.IMAGE_BASE }}:${{ env.VERSION }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ==========================================
+  # 2. DESPLIEGUE CONTINUO (CD) - Actualiza la VPS
+  # ==========================================
+  deploy-to-vps:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ejecutar despliegue en la VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true 
+          command_timeout: 30m # <-- NUEVO: Le damos hasta 30 minutos a GitHub por si la descarga es lenta
+          script: |
+            cd /var/www/eurorattanmgta.com
+            
+            echo ${{ secrets.GHCR_PAT }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            docker compose pull api reverb queue scheduler
+            docker compose up -d api reverb queue scheduler
+            
+            # --- LA MAGIA ESTÁ AQUÍ ---
+            echo "Esperando 30 segundos para que MySQL termine de inicializarse..."
+            sleep 30
+            
+            # Ahora sí, disparamos Laravel de forma segura
+            docker exec erm_api php artisan migrate --force
+            docker exec erm_api php artisan optimize:clear
+            docker exec erm_api php artisan queue:restart

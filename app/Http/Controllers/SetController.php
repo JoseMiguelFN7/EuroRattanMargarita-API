@@ -133,7 +133,7 @@ class SetController extends Controller
             // --- C. LIMPIEZA VISUAL ---
             $product = $set->product;
             if ($product) {
-                // Imagen para la tabla
+                // Imagen para la tabla (CORREGIDO)
                 if ($product->images->isNotEmpty()) {
                     $product->images->transform(function ($image) {
                         // Reescribimos la propiedad url del objeto, pero sigue siendo un objeto
@@ -144,6 +144,7 @@ class SetController extends Controller
                     // Es mejor que sea un array vacío en lugar de null para evitar errores en JS
                     $product->images = collect([]); 
                 }
+                
                 // Ocultamos datos pesados del producto
                 $product->makeHidden(['created_at', 'updated_at', 'description', 'sell', 'stocks']);
             }

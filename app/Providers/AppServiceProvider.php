@@ -5,6 +5,7 @@ namespace App\Providers;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\URL; // <--- AGREGADO
 use App\Models\Permission;
 use App\Models\Order;
 use App\Models\Commission;
@@ -32,13 +33,18 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // --- FORZAR HTTPS EN PRODUCCIÓN ---
+        if (config('app.env') === 'production') {
+            URL::forceScheme('https');
+        }
+
         // --- BLOQUE DE PERMISOS (CONSTRUIDO PARA SER TOLERANTE A FALLOS) ---
         try {
             if (!app()->runningInConsole()) {
-                if (\Illuminate\Support\Facades\Schema::hasTable('permissions')) {
-                    $permissions = \App\Models\Permission::all();
+                if (Schema::hasTable('permissions')) {
+                    $permissions = Permission::all();
                     foreach ($permissions as $permission) {
-                        \Illuminate\Support\Facades\Gate::define($permission->slug, function ($user) use ($permission) {
+                        Gate::define($permission->slug, function ($user) use ($permission) {
                             return $user->hasPermission($permission->slug);
                         });
                     }
@@ -48,11 +54,11 @@ class AppServiceProvider extends ServiceProvider
             \Illuminate\Support\Facades\Log::warning("Base de datos no lista aún. Saltando carga de permisos.");
         }
 
-        // --- REGISTRO DE OBSERVERS (ESTOS NO NECESITAN DB ACTIVA PARA REGISTRARSE) ---
-        \App\Models\Order::observe(\App\Observers\OrderObserver::class);
-        \App\Models\Commission::observe(\App\Observers\CommissionObserver::class);
-        \App\Models\CommissionSuggestion::observe(\App\Observers\SuggestionObserver::class);
-        \App\Models\Payment::observe(\App\Observers\PaymentObserver::class);
-        \App\Models\ProductMovement::observe(\App\Observers\ProductMovementObserver::class);
+        // --- REGISTRO DE OBSERVERS ---
+        Order::observe(OrderObserver::class);
+        Commission::observe(CommissionObserver::class);
+        CommissionSuggestion::observe(SuggestionObserver::class);
+        Payment::observe(PaymentObserver::class);
+        ProductMovement::observe(ProductMovementObserver::class);
     }
 }
