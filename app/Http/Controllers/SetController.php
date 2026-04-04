@@ -136,10 +136,13 @@ class SetController extends Controller
                 // Imagen para la tabla (CORREGIDO)
                 if ($product->images->isNotEmpty()) {
                     $product->images->transform(function ($image) {
-                        // Modificamos solo el atributo url de cada objeto imagen
+                        // Reescribimos la propiedad url del objeto, pero sigue siendo un objeto
                         $image->url = asset('storage/' . $image->url);
                         return $image;
                     });
+                } else {
+                    // Es mejor que sea un array vacío en lugar de null para evitar errores en JS
+                    $product->images = collect([]); 
                 }
                 
                 // Ocultamos datos pesados del producto
