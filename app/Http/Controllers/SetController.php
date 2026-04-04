@@ -135,11 +135,14 @@ class SetController extends Controller
             if ($product) {
                 // Imagen para la tabla
                 if ($product->images->isNotEmpty()) {
-                    $product->images = $product->images->map(function ($image) {
-                        return asset('storage/' . $image->url);
+                    $product->images->transform(function ($image) {
+                        // Reescribimos la propiedad url del objeto, pero sigue siendo un objeto
+                        $image->url = asset('storage/' . $image->url);
+                        return $image;
                     });
                 } else {
-                    $product->images = null;
+                    // Es mejor que sea un array vacío en lugar de null para evitar errores en JS
+                    $product->images = collect([]); 
                 }
                 // Ocultamos datos pesados del producto
                 $product->makeHidden(['created_at', 'updated_at', 'description', 'sell', 'stocks']);
