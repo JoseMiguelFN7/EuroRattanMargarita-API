@@ -51,11 +51,12 @@ class ColorSeeder extends Seeder
         ];
 
         foreach ($colors as $color) {
-            // Buscamos por HEX para no repetir el código de color
             Color::firstOrCreate(
-                ['hex' => $color['hex']], 
-                ['name' => $color['name']],
-                ['is_natural' => $color['is_natural']]
+                ['hex' => $color['hex']], // 1. Búsqueda: Buscamos por HEX
+                [                         // 2. Creación: Datos extra si no existe
+                    'name' => $color['name'],
+                    'is_natural' => $color['is_natural']
+                ]
             );
         }
     }
